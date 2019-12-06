@@ -1,15 +1,12 @@
 import { HEADER_CD, HEADER_LOCAL } from "./constants.js";
+import { encode_utf8_string } from "./string.js";
 
-
-const inflatedEntries: WeakMap<Blob, Blob> = new WeakMap
-const encoder = new TextEncoder();
-
-function encodeString (str: string): Uint8Array {
-	return encoder.encode(str);
-}
+const inflated_entries: WeakMap<Blob, Blob> = new WeakMap
 
 export class ZipEntry {
 	private readonly blob: Blob
+	private extra?: Uint8Array
+	private comment?: Uint8Array
 	readonly compressed: boolean
 	
 	constructor (blob: Blob, isCompressed: boolean) {
@@ -18,7 +15,7 @@ export class ZipEntry {
 	}
 	
     private async decompress(): Promise<Blob> {
-        const existing = inflatedEntries.get(this.blob);
+        const existing = inflated_entries.get(this.blob);
 		if (existing)
 			return existing;
 		else {
@@ -27,194 +24,123 @@ export class ZipEntry {
 		}
     }
     
-    generateLocalHeader (filename: string, extra?: Uint8Array) {
-		let offset = 0;
-		const encodedFilename = encodeString(filename);
-		const length = 30 + encodedFilename.length + (extra ? extra.length : 0);
+    generate_local (filename: string): ArrayBuffer {
+		const encoded_filename = encode_utf8_string(filename);
+		const N = encoded_filename.length;
+		const M = this.extra ? this.extra.length : 0;
+		const length = 30 + N + M;
 		const buffer = new ArrayBuffer(length);
 		const view = new DataView(buffer);
 		const uintview = new Uint8Array(buffer);
 
-		// [0, 4] Local file header signature
-		view.setUint32(offset, HEADER_LOCAL, true);
-		offset += 4;
+		/*
+		 *	4 bytes - Local file header signature
+		 *	2 bytes - Minimum require version
+		 *	2 bytes - Bit flag
+		 *	2 bytes - Compression method
+		 *  2 bytes - Last modified time
+		 *  2 bytes - Last modified date
+		 *  4 bytes - CRC
+		 *  4 bytes - Compressed size
+		 *  4 bytes - Uncompressed size
+		 *  2 bytes - Filename length
+		 *  2 bytes - Extra field length
+		 *  N bytes - Filename
+		 *  M bytes - Extra field
+		 */
+
+		view.setUint32(0, HEADER_LOCAL, true);
+		view.setUint16(4, 0, true); // TODO add correct minimum required version
+		view.setUint16(6, 0, true); // TODO add correct bit flag
+		view.setUint16(8, this.compressed ? 8 : 0, true);
+		view.setUint16(10, 0, true); // TODO add correct time
+		view.setUint16(12, 0, true); // TODO add correct date
+		view.setUint32(16, 0, true); // TODO add correct CRC
+		view.setUint32(20, 0, true); // TODO add correct compressed size
+		view.setUint32(24, 0, true); // TODO add correct uncompressed size
+		view.setUint16(26, encoded_filename.length, true);
+		view.setUint16(28, M, true);
 		
-		// TODO add correct minimum required version
-		// [4, 2] minimum required version
-		view.setUint16(offset, 0, true);
-		offset += 2;
-		
-		// TODO add correct bit flag
-		// [6, 2] bit flag
-		view.setUint16(offset, 0, true);
-		offset += 2;
-		
-		// [8, 2] compression method
-		view.setUint16(offset, this.compressed ? 8 : 0, true);
-		offset += 2;
-		
-		// TODO add correct time
-		// [10, 2] last modified time
-		view.setUint16(offset, 0, true);
-		offset += 2;
-		
-		// TODO add correct date
-		// [12, 2] last modified date
-		view.setUint16(offset, 0, true);
-		offset += 2;
-		
-		// TODO add correct CRC
-		// [14, 4] CRC 32
-		view.setUint32(offset, 0, true);
-		offset += 4;
-		
-		// TODO add correct compressed size
-		// [18, 4] compressed size
-		view.setUint32(offset, 0, true);
-		offset += 4;
-		
-		// TODO add correct uncompressed size
-		// [22, 4] uncompressed size
-		view.setUint32(offset, 0, true);
-		offset += 4;
-		
-		// [26, 2] file name length (n)
-		view.setUint16(offset, encodedFilename.length, true);
-		offset += 2;
-		
-		// [28, 2] extra field length (m)
-		view.setUint16(offset, extra ? extra.length : 0, true);
-		offset += 2;
-		
-		// [30, n] file name
-		uintview.set(encodedFilename, offset);
-		offset += encodedFilename.length;
-		
-		// [30 + n, m] extra field
-		if (extra) {
-			uintview.set(extra, offset);
-			offset += extra.length;
+		uintview.set(encoded_filename, 30);
+
+		if (this.extra) {
+			uintview.set(this.extra, 30 + N);
 		}
 
 		// might be a 12 - 16 byte footer here, depending on the value of flag
 
-		return view;
+		return buffer;
     }
 
-    generateCentralHeader (filename: string, extra?: Uint8Array, comment?: string) {
-        let offset = 0;
-        const encodedFilename = encodeString(filename);
-        const encodedComment = comment ? encodeString(comment) : null;
-        const length = 30 + encodedFilename.length + (extra ? extra.length : 0) + (encodedComment ? encodedComment.length : 0);
-        
+    generate_cd (filename: string, local_position: number): ArrayBuffer {
+		const encoded_filename = encode_utf8_string(filename);
+		const N = encoded_filename.length;
+		const M = this.extra ? this.extra.length : 0;
+		const K = this.comment ? this.comment.length : 0;
+        const length = 30 + M + N + K;
 		const buffer = new ArrayBuffer(length);
 		const view = new DataView(buffer);
-        const uintview = new Uint8Array(buffer);
+		const uintview = new Uint8Array(buffer);
 		
-		// [0, 4] CD signature
-		view.setUint32(offset, HEADER_CD, true);
-		offset += 4;
-        
-        // TODO set correct version made by
-		// [4, 2] version made by
-		view.setUint16(offset, 0, true);
-		offset += 2;
-        
-        // TODO set correct minimum required version
-		// [6, 2] minimum required version
-		view.setUint16(offset, 0, true);
-		offset += 2;
-        
-        // TODO add correct bit flag
-		// [8, 2] bit flag
-		view.setUint16(offset, 0, true);
-		offset += 2;
+		/*
+		 *	4 bytes - Central directory header signature
+		 *	2 bytes - Version made by
+		 *	2 bytes - Minimum require version
+		 *	2 bytes - Bit flag
+		 *	2 bytes - Compression method
+		 *  2 bytes - Last modified time
+		 *  2 bytes - Last modified date
+		 *  4 bytes - CRC
+		 *  4 bytes - Compressed size
+		 *  4 bytes - Uncompressed size
+		 *  2 bytes - Filename length
+		 *  2 bytes - Extra field length
+		 *  2 bytes - File comment length
+		 *  2 bytes - Disk number
+		 *  2 bytes - Internal file attribute
+		 *  4 bytes - External file attribute
+		 *  4 bytes - Local position
+		 *  N bytes - Filename
+		 *  M bytes - Extra field
+		 *  K bytes - File comment
+		 */
 		
-		// [10, 2] compression method ( 0 = none / 8 = deflate )
-		view.setUint16(offset, this.compressed ? 8 : 0, true);
-		offset += 2;
-        
-        // TODO add correct time
-		// [12, 2] last modified time
-		view.setUint16(offset, 0, true);
-		offset += 2;
-        
-        // TODO add correct date
-		// [14, 2] last modified date
-		view.setUint16(offset, 0, true);
-		offset += 2;
-        
-        // TODO add correct CRC
-		// [16, 4] CRC 32
-		view.setUint32(offset, 0, true);
-		offset += 4;
-        
-        // TODO add correct compressed size
-		// [20, 4] compressed size
-		view.setUint32(offset, 0, true);
-		offset += 4;
-        
-        // TODO add correct uncompressed size
-		// [24, 4] uncompressed size
-		view.setUint32(offset, 0, true);
-		offset += 4;
-		
-		// [28, 2] file name length (n)
-		view.setUint16(offset, encodedFilename.length, true);
-		offset += 2;
-		
-		// [30, 2] extra field length (m)
-		view.setUint16(offset, extra ? extra.length : 0, true);
-		offset += 2;
-		
-		// [32, 2] file comment length (k)
-		view.setUint16(offset, encodedComment ? encodedComment.length : 0, true);
-		offset += 2;
-        
-        // TODO set correct disk number
-		// [34, 2] disk number where file starts
-		view.setUint16(offset, 0, true);
-		offset += 2;
-        
-        // TODO set correct internal file attr
-		// [36, 2] internal file attributes
-		view.setUint16(offset, 0, true);
-		offset += 2;
-        
-        // TODO set correct external file attr
-		// [38, 4] external file attributes
-		view.setUint32(offset, 0, true);
-		offset += 4;
-        
-        // TODO set correct local position
-		// [42, 4] offset of local file header, relative to start of archive
-		view.setUint32(offset, localPosition, true);
-		offset += 4;
-        
-        // [46, n] file name
-        uintview.set(encodedFilename, offset);
-        offset += encodedFilename.length;
-		
-		// [46 + n, m] extra field
-		if (extra) {
-			uintview.set(extra, offset);
-			offset += extra.length;
+		view.setUint32(0, HEADER_CD, true);
+		view.setUint16(4, 0, true); // TODO set correct version made by
+		view.setUint16(6, 0, true); // TODO set correct minimum required version
+		view.setUint16(8, 0, true); // TODO add correct bit flag
+		view.setUint16(10, this.compressed ? 8 : 0, true);
+		view.setUint16(12, 0, true); // TODO add correct time
+		view.setUint16(14, 0, true); // TODO add correct date
+		view.setUint32(16, 0, true); // TODO add correct CRC
+		view.setUint32(20, 0, true); // TODO add correct compressed size
+		view.setUint32(24, 0, true); // TODO add correct uncompressed size
+		view.setUint16(28, encoded_filename.length, true);
+		view.setUint16(30, M, true);
+		view.setUint16(32, K, true);
+		view.setUint16(34, 0, true); // TODO set correct disk number
+		view.setUint16(36, 0, true); // TODO set correct internal file attr
+		view.setUint32(38, 0, true); // TODO set correct external file attr
+		view.setUint32(42, local_position, true); // TODO set correct local position
+
+        uintview.set(encoded_filename, 46);
+
+		if (this.extra) {
+			uintview.set(this.extra, 46 + N);
 		}
-		
-        // [46 + n + m, k] file comment
-        if (encodedComment) {
-			uintview.set(encodedComment, offset);
-			offset += encodedComment.length;
+
+        if (this.comment) {
+			uintview.set(this.comment, 46 + N + M);
         }
         
-        return view;
+        return buffer;
     }
 
-    getBackingObject () {
+    get_backing_object (): Blob {
         return this.blob;
     }
 	
-	async getBlob () {
+	async get_blob (): Promise<Blob> {
 		if (this.compressed)
 			return this.decompress();
 		else
