@@ -77,7 +77,7 @@ export class ZipEntry {
 		const N = encoded_filename.length;
 		const M = this.extra ? this.extra.length : 0;
 		const K = this.comment ? this.comment.length : 0;
-        const length = 30 + M + N + K;
+        const length = 46 + M + N + K;
 		const buffer = new ArrayBuffer(length);
 		const view = new DataView(buffer);
 		const uintview = new Uint8Array(buffer);
