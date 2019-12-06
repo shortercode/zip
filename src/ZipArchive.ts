@@ -1,6 +1,6 @@
 import { ZipEntry } from "./ZipEntry.js";
 import { HEADER_CD, HEADER_EOCDR, HEADER_LOCAL } from "./constants.js";
-import { decode_utf8_string } from "./string.js";
+import { decode_utf8_string, encode_utf8_string } from "./string.js";
 import { assert } from "./assert.js";
 
 function read_blob (blob: Blob): Promise<ArrayBuffer> {
@@ -108,9 +108,9 @@ export class ZipArchive {
 	}
 
 	set_comment (str: string) {
-		NOT_IMPLEMENTED("set_comment");
-		// TODO implement set comment
-		// TODO implement comment length limit
+		const buffer = encode_utf8_string(str);
+		assert(buffer.length < 0xFFFF, "Comment exceeds maximum size");
+		this.comment = buffer;
 	}
 	
 	to_blob (): Blob {
@@ -132,15 +132,17 @@ export class ZipArchive {
             directories.push(cd);
         }
 
-        const CDOffset = offset;
+		const cd_offset = offset;
+		let cd_length = 0;
 
         for (const cd of directories) {
-            parts.push(cd);
+			parts.push(cd);
+			cd_length += cd.byteLength;
         }
 
-		const EOCDR = this.generate_eocdr(CDOffset, directories.length);
-		
-		parts.push(EOCDR);
+		const eocdr = this.generate_eocdr(cd_offset, cd_length, directories.length);
+		parts.push(eocdr);
+
         return new Blob(parts);
     }
     
@@ -350,15 +352,19 @@ export class ZipArchive {
 			}
 			else {
 				// file
-				const local = this.read_local(view, entry.local_position);
-				const subblob = blob.slice(local.data_location, local.data_location + local.compressed_size);
+				// NOTE local data is often invalid, so only use the data position value from it
+				// ( everything else can come from the CD entry )
 
-				const is_compressed = local.compression == 8;
+				const { data_location } = this.read_local(view, entry.local_position);
+				const { compressed_size, compression, file_name } = entry;
+				const subblob = blob.slice(data_location, data_location + compressed_size);
+				const is_compressed = compression == 8;
+
 				if (is_compressed) {
-					archive.set_compressed(local.file_name, subblob);
+					archive.set_compressed(file_name, subblob);
 				}
 				else {
-					archive.set(local.file_name, subblob);
+					archive.set(file_name, subblob);
 				}
 			}
 			
@@ -367,7 +373,7 @@ export class ZipArchive {
 		return archive;
     }
 
-    private generate_eocdr (cd_location: number, records: number): ArrayBuffer {
+    private generate_eocdr (cd_location: number, cd_size: number, records: number): ArrayBuffer {
 		
 		const N = this.comment ? this.comment.length : 0;
 		const length = 22 + N;
@@ -388,11 +394,11 @@ export class ZipArchive {
 		 */
 
 		view.setUint32(0, HEADER_EOCDR, true);
-		view.setUint16(4, 0, true); // TODO
-		view.setUint16(6, 0, true); // TODO
-		view.setUint16(8, 0, true); // TODO
-		view.setUint16(10, 0, true); // TODO
-		view.setUint32(12, 0, true); // TODO
+		view.setUint16(4, 0, true);
+		view.setUint16(6, 0, true);
+		view.setUint16(8, records, true);
+		view.setUint16(10, records, true);
+		view.setUint32(12, cd_size, true);
 		view.setUint32(16, cd_location, true);
 		view.setUint16(20, N, true);
 
