@@ -1,5 +1,7 @@
 import { HEADER_CD, HEADER_LOCAL } from "./constants.js";
 import { encode_utf8_string } from "./string.js";
+import { decompress } from "./compression.js";
+import { read_blob } from "./readblob.js";
 
 const inflated_entries: WeakMap<Blob, Blob> = new WeakMap
 
@@ -19,8 +21,10 @@ export class ZipEntry {
 		if (existing)
 			return existing;
 		else {
-			// TODO decompression logic here
-            return this.blob;
+			const result = await decompress(await read_blob(this.blob));
+			const new_blob = new Blob([result]);
+			inflated_entries.set(this.blob, new_blob);
+            return new_blob;
 		}
     }
     

@@ -2,16 +2,8 @@ import { ZipEntry } from "./ZipEntry.js";
 import { HEADER_CD, HEADER_EOCDR, HEADER_LOCAL } from "./constants.js";
 import { decode_utf8_string, encode_utf8_string } from "./string.js";
 import { assert } from "./assert.js";
-
-function read_blob (blob: Blob): Promise<ArrayBuffer> {
-    return new Promise((resolve, reject) =>
-    {
-        const fileReader = new FileReader();
-        fileReader.onload = () => resolve(<ArrayBuffer>fileReader.result);
-        fileReader.onerror = () => reject(fileReader.error);
-        fileReader.readAsArrayBuffer(blob);
-    });
-}
+import { read_blob } from "./readblob.js";
+import { compress, set_compression_function, set_decompression_function } from "./compression.js";
 
 function NOT_IMPLEMENTED (name: string) {
     throw new Error(`${name} is not implemented`);
@@ -101,7 +93,7 @@ export class ZipArchive {
 			const blob = await entry.get_blob();
 			const deflated_blob = await this.compress_blob(blob);
 			const new_entry = new ZipEntry(deflated_blob, true);
-			// TODO is this correct?
+			this.entries.set(name, new_entry);
 			return new_entry;
 		}
 		return entry;
@@ -148,7 +140,62 @@ export class ZipArchive {
     
     files (): IterableIterator<[string, ZipEntry]> {
         return this.entries.entries();
+	}
+	
+	static async from_blob (blob: Blob): Promise<ZipArchive> {
+        const archive = new ZipArchive;
+        const buffer = await read_blob(blob);
+        const view = new DataView(buffer);
+
+        const eocdr_position = this.find_eocdr(view);
+		const eocdr = this.read_eocdr(view, eocdr_position);
+		
+		let position = 0;
+		const offset = eocdr.cd_offset
+		const length = eocdr.cd_length;
+		while (position < length)
+		{
+			const signature = view.getUint32(position + offset, true);
+			
+			assert(signature === HEADER_CD, "")
+
+			const entry = this.read_cd(view, position + offset);
+			position += entry.size;
+
+			if (entry.file_name.endsWith("/")) {
+				// folder
+				// TODO we currently ignore folders, as they are optional in the ZIP spec
+			}
+			else {
+				// file
+				// NOTE local data is often invalid, so only use the data position value from it
+				// ( everything else can come from the CD entry )
+
+				const { data_location } = this.read_local(view, entry.local_position);
+				const { compressed_size, compression, file_name } = entry;
+				const subblob = blob.slice(data_location, data_location + compressed_size);
+				const is_compressed = compression == 8;
+
+				if (is_compressed) {
+					archive.set_compressed(file_name, subblob);
+				}
+				else {
+					archive.set(file_name, subblob);
+				}
+			}
+			
+		}
+		
+		return archive;
     }
+
+	static set_compression_function (fn: (input: ArrayBuffer) => Promise<ArrayBuffer>) {
+		set_compression_function(fn);
+	}
+
+	static set_decompression_function(fn: (input: ArrayBuffer) => Promise<ArrayBuffer>) {
+		set_decompression_function(fn);
+	}
 
     private static read_local (view: DataView, position: number): LD_Block
 	{
@@ -326,53 +373,6 @@ export class ZipArchive {
 		};
     }
 
-	static async from_blob (blob: Blob): Promise<ZipArchive> {
-        const archive = new ZipArchive;
-        const buffer = await read_blob(blob);
-        const view = new DataView(buffer);
-
-        const eocdr_position = this.find_eocdr(view);
-		const eocdr = this.read_eocdr(view, eocdr_position);
-		
-		let position = 0;
-		const offset = eocdr.cd_offset
-		const length = eocdr.cd_length;
-		while (position < length)
-		{
-			const signature = view.getUint32(position + offset, true);
-			
-			assert(signature === HEADER_CD, "")
-
-			const entry = this.read_cd(view, position + offset);
-			position += entry.size;
-
-			if (entry.file_name.endsWith("/")) {
-				// folder
-				// TODO we currently ignore folders, as they are optional in the ZIP spec
-			}
-			else {
-				// file
-				// NOTE local data is often invalid, so only use the data position value from it
-				// ( everything else can come from the CD entry )
-
-				const { data_location } = this.read_local(view, entry.local_position);
-				const { compressed_size, compression, file_name } = entry;
-				const subblob = blob.slice(data_location, data_location + compressed_size);
-				const is_compressed = compression == 8;
-
-				if (is_compressed) {
-					archive.set_compressed(file_name, subblob);
-				}
-				else {
-					archive.set(file_name, subblob);
-				}
-			}
-			
-		}
-		
-		return archive;
-    }
-
     private generate_eocdr (cd_location: number, cd_size: number, records: number): ArrayBuffer {
 		
 		const N = this.comment ? this.comment.length : 0;
@@ -419,8 +419,9 @@ export class ZipArchive {
 	}
 	
 	private async compress_blob (file: Blob): Promise<Blob> {
-        NOT_IMPLEMENTED("ZipArchive.compressBlob");
-        // TODO add compression code
-        return file;
+		const buffer = await read_blob(file);
+		const result = await compress(buffer);
+		const new_blob = new Blob([result]);
+        return new_blob;
 	}
 }
