@@ -415,7 +415,13 @@ export class ZipArchive {
 	}
 	
 	private verify_path (name: string) {
-		// TODO verify file paths
+		const slash_regex = /[\\|/]/g;
+		const part_regex = /^[\w\-. ]+$/;
+		const parts = name.split(slash_regex);
+
+		for (const part of parts) {
+			assert(part_regex.test(part) || part === ".." || part === ".", `Invalid path "${name}"`);
+		}
 	}
 	
 	private async compress_blob (file: Blob): Promise<Blob> {
