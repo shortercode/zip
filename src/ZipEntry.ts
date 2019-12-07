@@ -3,17 +3,24 @@ import { encode_utf8_string } from "./string.js";
 import { decompress } from "./compression.js";
 import { read_blob } from "./readblob.js";
 
+const ZIP_VERSION = 20;
 const inflated_entries: WeakMap<Blob, Blob> = new WeakMap
 
 export class ZipEntry {
 	private readonly blob: Blob
 	private extra?: Uint8Array
 	private comment?: Uint8Array
+	readonly uncompressed_size: number
 	readonly compressed: boolean
 	
-	constructor (blob: Blob, isCompressed: boolean) {
+	constructor (blob: Blob, isCompressed: boolean, size: number) {
 		this.compressed = isCompressed;
 		this.blob = blob;
+		this.uncompressed_size = size;
+	}
+
+	get compressed_size (): number {
+		return this.blob.size;
 	}
 	
     private async decompress(): Promise<Blob> {
@@ -54,14 +61,14 @@ export class ZipEntry {
 		 */
 
 		view.setUint32(0, HEADER_LOCAL, true);
-		view.setUint16(4, 0, true); // TODO add correct minimum required version
+		view.setUint16(4, ZIP_VERSION, true);
 		view.setUint16(6, 0, true); // TODO add correct bit flag
 		view.setUint16(8, this.compressed ? 8 : 0, true);
 		view.setUint16(10, 0, true); // TODO add correct time
 		view.setUint16(12, 0, true); // TODO add correct date
 		view.setUint32(16, 0, true); // TODO add correct CRC
-		view.setUint32(20, 0, true); // TODO add correct compressed size
-		view.setUint32(24, 0, true); // TODO add correct uncompressed size
+		view.setUint32(20, this.compressed_size, true);
+		view.setUint32(24, this.uncompressed_size, true);
 		view.setUint16(26, encoded_filename.length, true);
 		view.setUint16(28, M, true);
 		
@@ -110,22 +117,22 @@ export class ZipEntry {
 		 */
 		
 		view.setUint32(0, HEADER_CD, true);
-		view.setUint16(4, 0, true); // TODO set correct version made by
-		view.setUint16(6, 0, true); // TODO set correct minimum required version
+		view.setUint16(4, ZIP_VERSION, true);
+		view.setUint16(6, ZIP_VERSION, true);
 		view.setUint16(8, 0, true); // TODO add correct bit flag
 		view.setUint16(10, this.compressed ? 8 : 0, true);
 		view.setUint16(12, 0, true); // TODO add correct time
 		view.setUint16(14, 0, true); // TODO add correct date
 		view.setUint32(16, 0, true); // TODO add correct CRC
-		view.setUint32(20, 0, true); // TODO add correct compressed size
-		view.setUint32(24, 0, true); // TODO add correct uncompressed size
+		view.setUint32(20, this.compressed_size, true);
+		view.setUint32(24, this.uncompressed_size, true);
 		view.setUint16(28, encoded_filename.length, true);
 		view.setUint16(30, M, true);
 		view.setUint16(32, K, true);
-		view.setUint16(34, 0, true); // TODO set correct disk number
+		view.setUint16(34, 0, true);
 		view.setUint16(36, 0, true); // TODO set correct internal file attr
 		view.setUint32(38, 0, true); // TODO set correct external file attr
-		view.setUint32(42, local_position, true); // TODO set correct local position
+		view.setUint32(42, local_position, true);
 
         uintview.set(encoded_filename, 46);
 
