@@ -1,5 +1,5 @@
 import { HEADER_CD, HEADER_LOCAL } from "./constants.js";
-import { encode_utf8_string } from "./string.js";
+import { encode_utf8_string, decode_utf8_string } from "./string.js";
 import { decompress } from "./compression.js";
 import { read_blob } from "./readblob.js";
 import { assert } from "./assert.js";
@@ -22,6 +22,11 @@ export class ZipEntry {
 		this.compression = compression_type;
 		this.blob = blob;
 		this.uncompressed_size = size;
+	}
+
+	// alias for uncompressed_size
+	get size (): number {
+		return this.uncompressed_size;
 	}
 
 	get compressed_size (): number {
@@ -162,5 +167,15 @@ export class ZipEntry {
 
 		assert(this.compression !== 0, "Incompatible compression type");
 		return this.blob;
+	}
+
+	async get_array_buffer (): Promise<ArrayBuffer> {
+		const blob = await this.get_blob();
+		return read_blob(blob);
+	}
+
+	async get_string (): Promise<string> {
+		const buffer = await this.get_array_buffer();
+		return decode_utf8_string(buffer, 0, buffer.byteLength);
 	}
 }
