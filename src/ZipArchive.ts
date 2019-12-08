@@ -57,19 +57,23 @@ export class ZipArchive {
 	private entries: Map<string, ZipEntry> = new Map
 	private comment?: Uint8Array
 	
-	has (name: string) {
-		this.verify_path(name);
+	has (file_name: string): boolean {
+		this.verify_path(file_name);
+		return this.entries.has(this.normalise_file_name(file_name));
 	}
 	
-	get (name: string): ZipEntry|undefined {
-		this.verify_path(name);
-		return this.entries.get(name);
+	get (file_name: string): ZipEntry|undefined {
+		this.verify_path(file_name);
+		return this.entries.get(this.normalise_file_name(file_name));
 	}
 	
-	set (name: string, file: Blob): ZipEntry {
-		this.verify_path(name);
+	set (file_name: string, file: Blob|string|ArrayBuffer): ZipEntry {
+		this.verify_path(file_name);
+		
+		file = file instanceof Blob ? file : new Blob([file]);
+		
 		const entry = new ZipEntry(file, 0, file.size);
-		this.entries.set(name, entry);
+		this.entries.set(this.normalise_file_name(file_name), entry);
 		return entry;
 	}
 	
@@ -85,16 +89,16 @@ export class ZipArchive {
         NOT_IMPLEMENTED("ZipArchive.move");
 	}
 	
-	async compress_entry (name: string) {
-		const entry = this.get(name);
+	async compress_entry (file_name: string) {
+		const entry = this.get(file_name);
 		if (!entry)
-			throw new Error(`Entry ${name} does not exist`);
+			throw new Error(`Entry ${file_name} does not exist`);
 		if (!entry.is_compressed) {
 			const blob = await entry.get_blob();
 			const original_size = blob.size;
 			const deflated_blob = await this.compress_blob(blob);
 			const new_entry = new ZipEntry(deflated_blob, 8, original_size);
-			this.entries.set(name, new_entry);
+			this.entries.set(this.normalise_file_name(file_name), new_entry);
 			return new_entry;
 		}
 		return entry;
@@ -139,7 +143,7 @@ export class ZipArchive {
         return new Blob(parts);
     }
     
-    files (): IterableIterator<[string, ZipEntry]> {
+    files (): Iterator<[string, ZipEntry]> {
         return this.entries.entries();
 	}
 	
@@ -413,12 +417,18 @@ export class ZipArchive {
 		const entry = new ZipEntry(file, compression, uncompressed_size);
 		this.entries.set(name, entry);
 	}
+
+	private normalise_file_name (file_name: string): string {
+		const slash_regex = /[\\|/]/g;
+		return file_name.replace(slash_regex, "/");
+	}
 	
 	private verify_path (name: string) {
 		const slash_regex = /[\\|/]/g;
 		const part_regex = /^[\w\-. ]+$/;
 		const parts = name.split(slash_regex);
 
+		// NOTE disallows absolute paths and ".."/"." path components
 		for (const part of parts) {
 			assert(part_regex.test(part) || part === ".." || part === ".", `Invalid path "${name}"`);
 		}
