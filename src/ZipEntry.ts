@@ -2,6 +2,7 @@ import { HEADER_CD, HEADER_LOCAL } from "./constants.js";
 import { encode_utf8_string } from "./string.js";
 import { decompress } from "./compression.js";
 import { read_blob } from "./readblob.js";
+import { assert } from "./assert.js";
 
 const ZIP_VERSION = 20;
 const inflated_entries: WeakMap<Blob, Blob> = new WeakMap
@@ -11,10 +12,14 @@ export class ZipEntry {
 	private extra?: Uint8Array
 	private comment?: Uint8Array
 	readonly uncompressed_size: number
-	readonly compressed: boolean
+	readonly compression: number
+
+	get is_compressed (): boolean {
+		return this.compression !== 0;
+	}
 	
-	constructor (blob: Blob, isCompressed: boolean, size: number) {
-		this.compressed = isCompressed;
+	constructor (blob: Blob, compression_type: number, size: number) {
+		this.compression = compression_type;
 		this.blob = blob;
 		this.uncompressed_size = size;
 	}
@@ -63,7 +68,7 @@ export class ZipEntry {
 		view.setUint32(0, HEADER_LOCAL, true);
 		view.setUint16(4, ZIP_VERSION, true);
 		view.setUint16(6, 0, true); // TODO add correct bit flag
-		view.setUint16(8, this.compressed ? 8 : 0, true);
+		view.setUint16(8, this.compression, true);
 		view.setUint16(10, 0, true); // TODO add correct time
 		view.setUint16(12, 0, true); // TODO add correct date
 		view.setUint32(16, 0, true); // TODO add correct CRC
@@ -120,7 +125,7 @@ export class ZipEntry {
 		view.setUint16(4, ZIP_VERSION, true);
 		view.setUint16(6, ZIP_VERSION, true);
 		view.setUint16(8, 0, true); // TODO add correct bit flag
-		view.setUint16(10, this.compressed ? 8 : 0, true);
+		view.setUint16(10, this.compression, true);
 		view.setUint16(12, 0, true); // TODO add correct time
 		view.setUint16(14, 0, true); // TODO add correct date
 		view.setUint32(16, 0, true); // TODO add correct CRC
@@ -152,9 +157,10 @@ export class ZipEntry {
     }
 	
 	async get_blob (): Promise<Blob> {
-		if (this.compressed)
+		if (this.compression === 8)
 			return this.decompress();
-		else
-			return this.blob;
+
+		assert(this.compression !== 0, "Incompatible compression type");
+		return this.blob;
 	}
 }

@@ -68,7 +68,7 @@ export class ZipArchive {
 	
 	set (name: string, file: Blob): ZipEntry {
 		this.verify_path(name);
-		const entry = new ZipEntry(file, false, file.size);
+		const entry = new ZipEntry(file, 0, file.size);
 		this.entries.set(name, entry);
 		return entry;
 	}
@@ -89,11 +89,11 @@ export class ZipArchive {
 		const entry = this.get(name);
 		if (!entry)
 			throw new Error(`Entry ${name} does not exist`);
-		if (!entry.compressed) {
+		if (!entry.is_compressed) {
 			const blob = await entry.get_blob();
 			const original_size = blob.size;
 			const deflated_blob = await this.compress_blob(blob);
-			const new_entry = new ZipEntry(deflated_blob, true, original_size);
+			const new_entry = new ZipEntry(deflated_blob, 8, original_size);
 			this.entries.set(name, new_entry);
 			return new_entry;
 		}
@@ -175,10 +175,9 @@ export class ZipArchive {
 				const { data_location } = this.read_local(view, entry.local_position);
 				const { uncompressed_size, compressed_size, compression, file_name } = entry;
 				const subblob = blob.slice(data_location, data_location + compressed_size);
-				const is_compressed = compression == 8;
 
-				if (is_compressed) {
-					archive.set_compressed(file_name, subblob, uncompressed_size);
+				if (compression !== 0) {
+					archive.set_compressed(file_name, subblob, uncompressed_size, compression);
 				}
 				else {
 					archive.set(file_name, subblob);
@@ -410,8 +409,8 @@ export class ZipArchive {
 		return buffer;
     }
 	
-	private set_compressed (name: string, file: Blob, uncompressed_size: number) {
-		const entry = new ZipEntry(file, true, uncompressed_size);
+	private set_compressed (name: string, file: Blob, uncompressed_size: number, compression: number) {
+		const entry = new ZipEntry(file, compression, uncompressed_size);
 		this.entries.set(name, entry);
 	}
 	
