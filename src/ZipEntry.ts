@@ -1,7 +1,6 @@
 import { HEADER_CD, HEADER_LOCAL } from "./constants.js";
-import { encode_utf8_string, decode_utf8_string } from "./string.js";
+import { encode_utf8_string } from "./string.js";
 import { decompress } from "./compression.js";
-import { read_blob } from "./readblob.js";
 import { assert } from "./assert.js";
 
 const ZIP_VERSION = 20;
@@ -38,10 +37,9 @@ export class ZipEntry {
 		if (existing)
 			return existing;
 		else {
-			const result = await decompress(await read_blob(this.blob));
-			const new_blob = new Blob([result]);
-			inflated_entries.set(this.blob, new_blob);
-            return new_blob;
+			const result = await decompress(this.blob);
+			inflated_entries.set(this.blob, result);
+            return result;
 		}
     }
     
@@ -171,11 +169,11 @@ export class ZipEntry {
 
 	async get_array_buffer (): Promise<ArrayBuffer> {
 		const blob = await this.get_blob();
-		return read_blob(blob);
+		return await new Response(blob).arrayBuffer();
 	}
 
 	async get_string (): Promise<string> {
-		const buffer = await this.get_array_buffer();
-		return decode_utf8_string(buffer, 0, buffer.byteLength);
+		const blob = await this.get_blob();
+		return await new Response(blob).text();
 	}
 }

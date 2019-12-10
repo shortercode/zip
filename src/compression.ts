@@ -1,6 +1,6 @@
 import { assert } from "./assert.js";
 
-type FunctionType = (buffer: ArrayBuffer) => Promise<ArrayBuffer>;
+type FunctionType = (input: Blob) => Promise<Blob>;
 let compression_function: FunctionType;
 let decompression_function: FunctionType;
 
@@ -12,12 +12,12 @@ export function set_decompression_function (fn: FunctionType) {
     decompression_function = fn;
 }
 
-export function compress (buffer: ArrayBuffer): Promise<ArrayBuffer> {
+export function compress (input: Blob): Promise<Blob> {
     assert(compression_function !== null, "Compression function not specified");
-    return compression_function(buffer);
+    return compression_function(input);
 }
 
-export function decompress (buffer: ArrayBuffer): Promise<ArrayBuffer> {
+export function decompress (input: Blob): Promise<Blob> {
     assert(decompression_function !== null, "Decompression function not specified");
-    return decompression_function(buffer);
+    return decompression_function(input);
 }

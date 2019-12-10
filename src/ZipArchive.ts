@@ -2,7 +2,6 @@ import { ZipEntry } from "./ZipEntry.js";
 import { HEADER_CD, HEADER_EOCDR, HEADER_LOCAL } from "./constants.js";
 import { decode_utf8_string, encode_utf8_string } from "./string.js";
 import { assert } from "./assert.js";
-import { read_blob } from "./readblob.js";
 import { compress, set_compression_function, set_decompression_function } from "./compression.js";
 
 function NOT_IMPLEMENTED (name: string) {
@@ -148,8 +147,8 @@ export class ZipArchive {
 	}
 	
 	static async from_blob (blob: Blob): Promise<ZipArchive> {
-        const archive = new ZipArchive;
-        const buffer = await read_blob(blob);
+		const archive = new ZipArchive;
+		const buffer = await new Response(blob).arrayBuffer();
         const view = new DataView(buffer);
 
         const eocdr_position = this.find_eocdr(view);
@@ -193,11 +192,11 @@ export class ZipArchive {
 		return archive;
     }
 
-	static set_compression_function (fn: (input: ArrayBuffer) => Promise<ArrayBuffer>) {
+	static set_compression_function (fn: (input: Blob) => Promise<Blob>) {
 		set_compression_function(fn);
 	}
 
-	static set_decompression_function(fn: (input: ArrayBuffer) => Promise<ArrayBuffer>) {
+	static set_decompression_function(fn: (input: Blob) => Promise<Blob>) {
 		set_decompression_function(fn);
 	}
 
@@ -435,9 +434,6 @@ export class ZipArchive {
 	}
 	
 	private async compress_blob (file: Blob): Promise<Blob> {
-		const buffer = await read_blob(file);
-		const result = await compress(buffer);
-		const new_blob = new Blob([result]);
-        return new_blob;
+		return await compress(file);
 	}
 }
