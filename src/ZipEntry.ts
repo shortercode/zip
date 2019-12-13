@@ -10,6 +10,9 @@ export class ZipEntry {
 	private readonly blob: Blob
 	private extra?: Uint8Array
 	private comment?: Uint8Array
+	internal_file_attr: number = 0
+	external_file_attr: number = 0
+
 	readonly uncompressed_size: number
 	readonly compression: number
 
@@ -138,8 +141,8 @@ export class ZipEntry {
 		view.setUint16(30, M, true);
 		view.setUint16(32, K, true);
 		view.setUint16(34, 0, true);
-		view.setUint16(36, 0, true); // TODO set correct internal file attr
-		view.setUint32(38, 0, true); // TODO set correct external file attr
+		view.setUint16(36, this.internal_file_attr & 0xFFFF, true);
+		view.setUint32(38, this.external_file_attr & 0xFFFFFFFF, true);
 		view.setUint32(42, local_position, true);
 
         uintview.set(encoded_filename, 46);

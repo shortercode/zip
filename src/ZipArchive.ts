@@ -176,15 +176,26 @@ export class ZipArchive {
 				// ( everything else can come from the CD entry )
 
 				const { data_location } = this.read_local(view, entry.local_position);
-				const { uncompressed_size, compressed_size, compression, file_name } = entry;
-				const subblob = blob.slice(data_location, data_location + compressed_size);
+				const {
+					uncompressed_size,
+					compressed_size,
+					compression,
+					file_name,
+					internal,
+					external
+				} = entry;
 
-				if (compression !== 0) {
-					archive.set_compressed(file_name, subblob, uncompressed_size, compression);
-				}
-				else {
-					archive.set(file_name, subblob);
-				}
+				const subblob = blob.slice(data_location, data_location + compressed_size);
+				let zip_entry;
+
+				if (compression !== 0)
+					zip_entry = archive.set_compressed(file_name, subblob, uncompressed_size, compression);
+				
+				else
+					zip_entry = archive.set(file_name, subblob);
+
+				zip_entry.internal_file_attr = internal;
+				zip_entry.external_file_attr = external;
 			}
 			
 		}
@@ -412,9 +423,10 @@ export class ZipArchive {
 		return buffer;
     }
 	
-	private set_compressed (name: string, file: Blob, uncompressed_size: number, compression: number) {
+	private set_compressed (name: string, file: Blob, uncompressed_size: number, compression: number): ZipEntry {
 		const entry = new ZipEntry(file, compression, uncompressed_size);
 		this.entries.set(name, entry);
+		return entry;
 	}
 
 	private normalise_file_name (file_name: string): string {
