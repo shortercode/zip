@@ -2,6 +2,7 @@ import { HEADER_CD, HEADER_LOCAL } from "./constants.js";
 import { encode_utf8_string } from "./string.js";
 import { decompress } from "./compression.js";
 import { assert } from "./assert.js";
+import { dos_time_from_date } from "./dos_time.js";
 
 const ZIP_VERSION = 20;
 const inflated_entries: WeakMap<Blob, Blob> = new WeakMap
@@ -10,9 +11,11 @@ export class ZipEntry {
 	private readonly blob: Blob
 	private extra?: Uint8Array
 	private comment?: Uint8Array
+	
 	internal_file_attr: number = 0
 	external_file_attr: number = 0
-
+	modified: Date = new Date
+	
 	readonly uncompressed_size: number
 	readonly compression: number
 
@@ -55,6 +58,8 @@ export class ZipEntry {
 		const view = new DataView(buffer);
 		const uintview = new Uint8Array(buffer);
 
+		const [date, time] = dos_time_from_date(this.modified);
+
 		/*
 		 *	4 bytes - Local file header signature
 		 *	2 bytes - Minimum require version
@@ -75,8 +80,8 @@ export class ZipEntry {
 		view.setUint16(4, ZIP_VERSION, true);
 		view.setUint16(6, 0, true); // TODO add correct bit flag
 		view.setUint16(8, this.compression, true);
-		view.setUint16(10, 0, true); // TODO add correct time
-		view.setUint16(12, 0, true); // TODO add correct date
+		view.setUint16(10, time, true);
+		view.setUint16(12, date, true);
 		view.setUint32(16, 0, true); // TODO add correct CRC
 		view.setUint32(20, this.compressed_size, true);
 		view.setUint32(24, this.uncompressed_size, true);
@@ -126,14 +131,16 @@ export class ZipEntry {
 		 *  M bytes - Extra field
 		 *  K bytes - File comment
 		 */
+
+		const [date, time] = dos_time_from_date(this.modified);
 		
 		view.setUint32(0, HEADER_CD, true);
 		view.setUint16(4, ZIP_VERSION, true);
 		view.setUint16(6, ZIP_VERSION, true);
 		view.setUint16(8, 0, true); // TODO add correct bit flag
 		view.setUint16(10, this.compression, true);
-		view.setUint16(12, 0, true); // TODO add correct time
-		view.setUint16(14, 0, true); // TODO add correct date
+		view.setUint16(12, time, true);
+		view.setUint16(14, date, true);
 		view.setUint32(16, 0, true); // TODO add correct CRC
 		view.setUint32(20, this.compressed_size, true);
 		view.setUint32(24, this.uncompressed_size, true);

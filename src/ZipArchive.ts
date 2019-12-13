@@ -3,6 +3,7 @@ import { HEADER_CD, HEADER_EOCDR, HEADER_LOCAL } from "./constants.js";
 import { decode_utf8_string, encode_utf8_string } from "./string.js";
 import { assert } from "./assert.js";
 import { compress, set_compression_function, set_decompression_function } from "./compression.js";
+import { date_from_dos_time } from "./dos_time.js";
 
 function NOT_IMPLEMENTED (name: string) {
     throw new Error(`${name} is not implemented`);
@@ -196,6 +197,7 @@ export class ZipArchive {
 
 				zip_entry.internal_file_attr = internal;
 				zip_entry.external_file_attr = external;
+				zip_entry.modified = date_from_dos_time(entry.date, entry.time);
 			}
 			
 		}
