@@ -16,6 +16,7 @@ export class ZipEntry {
 	external_file_attr: number = 0
 	modified: Date = new Date
 	
+	readonly crc: number
 	readonly uncompressed_size: number
 	readonly compression: number
 
@@ -23,10 +24,11 @@ export class ZipEntry {
 		return this.compression !== 0;
 	}
 	
-	constructor (blob: Blob, compression_type: number, size: number) {
+	constructor (blob: Blob, compression_type: number, size: number, crc: number) {
 		this.compression = compression_type;
 		this.blob = blob;
 		this.uncompressed_size = size;
+		this.crc = crc;
 	}
 
 	// alias for uncompressed_size
@@ -82,7 +84,7 @@ export class ZipEntry {
 		view.setUint16(8, this.compression, true);
 		view.setUint16(10, time, true);
 		view.setUint16(12, date, true);
-		view.setUint32(16, 0, true); // TODO add correct CRC
+		view.setUint32(16, this.crc, true);
 		view.setUint32(20, this.compressed_size, true);
 		view.setUint32(24, this.uncompressed_size, true);
 		view.setUint16(26, encoded_filename.length, true);
@@ -141,7 +143,7 @@ export class ZipEntry {
 		view.setUint16(10, this.compression, true);
 		view.setUint16(12, time, true);
 		view.setUint16(14, date, true);
-		view.setUint32(16, 0, true); // TODO add correct CRC
+		view.setUint32(16, this.crc, true);
 		view.setUint32(20, this.compressed_size, true);
 		view.setUint32(24, this.uncompressed_size, true);
 		view.setUint16(28, encoded_filename.length, true);

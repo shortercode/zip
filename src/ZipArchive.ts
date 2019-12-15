@@ -4,6 +4,7 @@ import { decode_utf8_string, encode_utf8_string } from "./string.js";
 import { assert } from "./assert.js";
 import { compress, set_compression_function, set_decompression_function } from "./compression.js";
 import { date_from_dos_time } from "./dos_time.js";
+import { crc32 } from "./crc32.js";
 
 function NOT_IMPLEMENTED (name: string) {
     throw new Error(`${name} is not implemented`);
@@ -67,14 +68,12 @@ export class ZipArchive {
 		return this.entries.get(this.normalise_file_name(file_name));
 	}
 	
-	set (file_name: string, file: Blob|string|ArrayBuffer): ZipEntry {
+	async set (file_name: string, file: Blob|string|ArrayBuffer): Promise<ZipEntry> {
 		this.verify_path(file_name);
 		
 		file = file instanceof Blob ? file : new Blob([file]);
-		
-		const entry = new ZipEntry(file, 0, file.size);
-		this.entries.set(this.normalise_file_name(file_name), entry);
-		return entry;
+		const crc = await this.calculate_crc(file);
+		return this.set_internal(file_name, file, 0, file.size, crc);
 	}
 	
 	copy (from: string, to: string) {
@@ -97,9 +96,8 @@ export class ZipArchive {
 			const blob = await entry.get_blob();
 			const original_size = blob.size;
 			const deflated_blob = await this.compress_blob(blob);
-			const new_entry = new ZipEntry(deflated_blob, 8, original_size);
-			this.entries.set(this.normalise_file_name(file_name), new_entry);
-			return new_entry;
+			// NOTE crc is generated from the uncompressed buffer
+			return this.set_internal(file_name, deflated_blob, 8, original_size, entry.crc);
 		}
 		return entry;
 	}
@@ -162,7 +160,7 @@ export class ZipArchive {
 		{
 			const signature = view.getUint32(position + offset, true);
 			
-			assert(signature === HEADER_CD, "")
+			assert(signature === HEADER_CD, "Expected CD header");
 
 			const entry = this.read_cd(view, position + offset);
 			position += entry.size;
@@ -183,17 +181,12 @@ export class ZipArchive {
 					compression,
 					file_name,
 					internal,
-					external
+					external,
+					crc
 				} = entry;
 
 				const subblob = blob.slice(data_location, data_location + compressed_size);
-				let zip_entry;
-
-				if (compression !== 0)
-					zip_entry = archive.set_compressed(file_name, subblob, uncompressed_size, compression);
-				
-				else
-					zip_entry = archive.set(file_name, subblob);
+				const zip_entry = archive.set_internal(file_name, subblob, compression, uncompressed_size, crc);
 
 				zip_entry.internal_file_attr = internal;
 				zip_entry.external_file_attr = external;
@@ -425,9 +418,17 @@ export class ZipArchive {
 		return buffer;
     }
 	
-	private set_compressed (name: string, file: Blob, uncompressed_size: number, compression: number): ZipEntry {
-		const entry = new ZipEntry(file, compression, uncompressed_size);
-		this.entries.set(name, entry);
+	private async calculate_crc (blob: Blob): Promise<number> {
+		const buffer = await new Response(blob).arrayBuffer();
+		const bytes = new Uint8Array(buffer);
+
+		return crc32(bytes);
+	}
+
+	private set_internal (file_name: string, file: Blob, compresion: number, size: number, crc: number) {
+		const norm_file_name = this.normalise_file_name(file_name);
+		const entry = new ZipEntry(file, compresion, size, crc);
+		this.entries.set(norm_file_name, entry);
 		return entry;
 	}
 
