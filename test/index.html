@@ -2,8 +2,36 @@
 <html>
     <body>
         <input type="file">
+        <script src="https://unpkg.com/wasm-flate@0.1.11-alpha/dist/bootstrap.js"></script>
+        <!-- <script src="../dependencies/pako.js"></script> -->
         <script type="module">
             import { ZipArchive } from "../dist/zip.js";
+
+            {
+                async function compress (input) {
+                    const buffer = await new Response(input).arrayBuffer();
+                    const bytes = new Uint8Array(buffer);
+
+                    const compressed_bytes = flate.deflate_encode_raw(bytes);
+                    // const compressed_bytes = pako.deflateRaw(bytes);
+
+                    return new Blob([compressed_bytes]);
+                }
+
+                async function decompress (input) {
+                    const buffer = await new Response(input).arrayBuffer();
+                    const bytes = new Uint8Array(buffer);
+
+                    const decompressed_bytes = flate.deflate_decode_raw(bytes);
+
+                    // const decompressed_bytes = pako.inflateRaw(bytes);
+
+                    return new Blob([decompressed_bytes]);
+                }
+
+                ZipArchive.set_compression_function(compress);
+                ZipArchive.set_decompression_function(decompress);
+            }
             
             const file_picker = document.querySelector("input");
             file_picker.addEventListener("change", async () => {
@@ -15,6 +43,10 @@
                     console.log(f);
                 }
 
+                const str = await archive.get("index.html").get_string();
+
+                console.log(str);
+                
                 const output = await archive.to_blob();
 
                 console.log(output);
