@@ -7,7 +7,7 @@
         <script type="module">
             import { ZipArchive } from "../dist/zip_default.js";
 
-            const file_picker = document.querySelector("input");
+            const file_picker = document.querySelector("input[type=file]");
             file_picker.addEventListener("change", async () => {
                 const file = file_picker.files[0];
 
@@ -16,10 +16,6 @@
                 for (const f of archive.files()) {
                     console.log(f);
                 }
-
-                const str = await archive.get("idb-2.1.1/lib/node.js").get_string();
-
-                console.log(str);
                 
                 const output = await archive.to_blob();
 
