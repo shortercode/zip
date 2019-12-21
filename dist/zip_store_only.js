@@ -306,7 +306,8 @@ class ZipArchive {
             assert(signature === HEADER_CD, "Expected CD header");
             const entry = this.read_cd(view, position + offset);
             position += entry.size;
-            if (entry.file_name.endsWith("/")) ;
+            if (entry.file_name.endsWith("/")) {
+            }
             else {
                 const { data_location } = this.read_local(view, entry.local_position);
                 const { uncompressed_size, compressed_size, compression, file_name, internal, external, crc } = entry;
