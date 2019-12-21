@@ -477,4 +477,4 @@ class ZipArchive {
     }
 }
 
-export { ZipArchive };
+export { ZipArchive, ZipEntry };

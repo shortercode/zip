@@ -601,4 +601,4 @@ async function decompress$1(input) {
 ZipArchive.set_compression_function(compress$1);
 ZipArchive.set_decompression_function(decompress$1);
 
-export { ZipArchive };
+export { ZipArchive, ZipEntry };

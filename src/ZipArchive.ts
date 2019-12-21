@@ -452,3 +452,5 @@ export class ZipArchive {
 		return await compress(file);
 	}
 }
+
+export { ZipEntry };
