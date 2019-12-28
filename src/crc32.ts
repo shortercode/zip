@@ -1,4 +1,3 @@
-
 const CRC_LOOKUP = new Uint32Array([
 	0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA, 0x076DC419, 0x706AF48F,
 	0xE963A535, 0x9E6495A3, 0x0EDB8832, 0x79DCB8A4, 0xE0D5E91E, 0x97D2D988,
@@ -46,10 +45,10 @@ const CRC_LOOKUP = new Uint32Array([
 ]);
 
 export function crc32(bytes: Uint8Array, crc = 0): number {
-    return (
-        ~ bytes.reduce(
-            (crc, v) => CRC_LOOKUP[(crc ^ v) & 0xFF] ^ (crc >>> 8),
-            ~ crc
-        )
-    ) >>> 0;
+	return (
+		~bytes.reduce(
+			(crc, v) => CRC_LOOKUP[(crc ^ v) & 0xFF] ^ (crc >>> 8),
+			~crc
+		)
+	) >>> 0;
 }

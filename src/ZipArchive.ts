@@ -1,13 +1,32 @@
-import { ZipEntry } from "./ZipEntry.js";
-import { HEADER_CD, HEADER_EOCDR, HEADER_LOCAL } from "./constants.js";
-import { decode_utf8_string, encode_utf8_string } from "./string.js";
-import { assert } from "./assert.js";
-import { compress, set_compression_function, set_decompression_function } from "./compression.js";
-import { date_from_dos_time } from "./dos_time.js";
-import { crc32 } from "./crc32.js";
+import {
+	ZipEntry
+} from "./ZipEntry.js";
+import {
+	HEADER_CD,
+	HEADER_EOCDR,
+	HEADER_LOCAL
+} from "./constants.js";
+import {
+	decode_utf8_string,
+	encode_utf8_string
+} from "./string.js";
+import {
+	assert
+} from "./assert.js";
+import {
+	compress,
+	set_compression_function,
+	set_decompression_function
+} from "./compression.js";
+import {
+	date_from_dos_time
+} from "./dos_time.js";
+import {
+	crc32
+} from "./crc32.js";
 
-function NOT_IMPLEMENTED (name: string) {
-    throw new Error(`${name} is not implemented`);
+function NOT_IMPLEMENTED(name: string) {
+	throw new Error(`${name} is not implemented`);
 }
 
 type EOCDR_Block = {
@@ -55,40 +74,40 @@ type LD_Block = {
 };
 
 export class ZipArchive {
-	private entries: Map<string, ZipEntry> = new Map
-	private comment?: Uint8Array
-	
-	has (file_name: string): boolean {
+	private entries: Map < string, ZipEntry > = new Map
+	private comment ? : Uint8Array
+
+	has(file_name: string): boolean {
 		this.verify_path(file_name);
 		return this.entries.has(this.normalise_file_name(file_name));
 	}
-	
-	get (file_name: string): ZipEntry|undefined {
+
+	get(file_name: string): ZipEntry | undefined {
 		this.verify_path(file_name);
 		return this.entries.get(this.normalise_file_name(file_name));
 	}
-	
-	async set (file_name: string, file: Blob|string|ArrayBuffer): Promise<ZipEntry> {
+
+	async set(file_name: string, file: Blob | string | ArrayBuffer): Promise < ZipEntry > {
 		this.verify_path(file_name);
-		
+
 		file = file instanceof Blob ? file : new Blob([file]);
 		const crc = await this.calculate_crc(file);
 		return this.set_internal(file_name, file, 0, file.size, crc);
 	}
-	
-	copy (from: string, to: string) {
+
+	copy(from: string, to: string) {
 		this.verify_path(from);
-    this.verify_path(to);
-    NOT_IMPLEMENTED("ZipArchive.copy");
+		this.verify_path(to);
+		NOT_IMPLEMENTED("ZipArchive.copy");
 	}
-	
-	move (from: string, to: string) {
+
+	move(from: string, to: string) {
 		this.verify_path(from);
-    this.verify_path(to);
-    NOT_IMPLEMENTED("ZipArchive.move");
+		this.verify_path(to);
+		NOT_IMPLEMENTED("ZipArchive.move");
 	}
-	
-	async compress_entry (file_name: string) {
+
+	async compress_entry(file_name: string) {
 		const entry = this.get(file_name);
 		if (!entry)
 			throw new Error(`Entry ${file_name} does not exist`);
@@ -102,13 +121,13 @@ export class ZipArchive {
 		return entry;
 	}
 
-	set_comment (str: string) {
+	set_comment(str: string) {
 		const buffer = encode_utf8_string(str);
 		assert(buffer.length < 0xFFFF, "Comment exceeds maximum size");
 		this.comment = buffer;
 	}
-	
-	to_blob (): Blob {
+
+	to_blob(): Blob {
 		const parts: BlobPart[] = [];
 
 		let offset = 0;
@@ -130,35 +149,34 @@ export class ZipArchive {
 		const cd_offset = offset;
 		let cd_length = 0;
 
-    for (const cd of directories) {
+		for (const cd of directories) {
 			parts.push(cd);
 			cd_length += cd.byteLength;
-    }
+		}
 
 		const eocdr = this.generate_eocdr(cd_offset, cd_length, directories.length);
 		parts.push(eocdr);
-    return new Blob(parts);
+		return new Blob(parts);
 	}
-    
-  files (): Iterator<[string, ZipEntry]> {
-    return this.entries.entries();
+
+	files(): Iterator < [string, ZipEntry] > {
+		return this.entries.entries();
 	}
-	
-	static async from_blob (blob: Blob): Promise<ZipArchive> {
+
+	static async from_blob(blob: Blob): Promise < ZipArchive > {
 		const archive = new ZipArchive;
 		const buffer = await new Response(blob).arrayBuffer();
-    const view = new DataView(buffer);
+		const view = new DataView(buffer);
 
-    const eocdr_position = this.find_eocdr(view);
+		const eocdr_position = this.find_eocdr(view);
 		const eocdr = this.read_eocdr(view, eocdr_position);
-		
+
 		let position = 0;
 		const offset = eocdr.cd_offset
 		const length = eocdr.cd_length;
-		while (position < length)
-		{
+		while (position < length) {
 			const signature = view.getUint32(position + offset, true);
-			
+
 			assert(signature === HEADER_CD, "Expected CD header");
 
 			const entry = this.read_cd(view, position + offset);
@@ -167,13 +185,14 @@ export class ZipArchive {
 			if (entry.file_name.endsWith("/")) {
 				// folder
 				// TODO we currently ignore folders, as they are optional in the ZIP spec
-			}
-			else {
+			} else {
 				// file
 				// NOTE local data is often invalid, so only use the data position value from it
 				// ( everything else can come from the CD entry )
 
-				const { data_location } = this.read_local(view, entry.local_position);
+				const {
+					data_location
+				} = this.read_local(view, entry.local_position);
 				const {
 					uncompressed_size,
 					compressed_size,
@@ -191,22 +210,21 @@ export class ZipArchive {
 				zip_entry.external_file_attr = external;
 				zip_entry.modified = date_from_dos_time(entry.date, entry.time);
 			}
-			
-		}
-		
-		return archive;
-  }
 
-	static set_compression_function (fn: (input: Blob) => Promise<Blob>) {
+		}
+
+		return archive;
+	}
+
+	static set_compression_function(fn: (input: Blob) => Promise < Blob > ) {
 		set_compression_function(fn);
 	}
 
-	static set_decompression_function(fn: (input: Blob) => Promise<Blob>) {
+	static set_decompression_function(fn: (input: Blob) => Promise < Blob > ) {
 		set_decompression_function(fn);
 	}
 
-  private static read_local (view: DataView, position: number): LD_Block
-	{
+	private static read_local(view: DataView, position: number): LD_Block {
 		/*
 		 *	4 bytes - Local file header signature
 		 *	2 bytes - Minimum require version
@@ -222,7 +240,7 @@ export class ZipArchive {
 		 *  N bytes - Filename
 		 *  M bytes - Extra field
 		 */
-		
+
 		const signature = view.getUint32(position, true);
 
 		assert(signature === HEADER_LOCAL, "Expected Local Directory Record signature");
@@ -239,10 +257,10 @@ export class ZipArchive {
 		const fieldLength = view.getUint16(position + 28, true);
 		const file_name = decode_utf8_string(view.buffer, position + 30, nameLength);
 		const field = new Uint8Array(view.buffer, position + 30 + nameLength, fieldLength);
-        const data_location = position + 30 + nameLength + fieldLength;
-		
+		const data_location = position + 30 + nameLength + fieldLength;
+
 		// might be a 12 - 16 byte footer here, depending on the value of flag
-        
+
 		return {
 			version,
 			flag,
@@ -253,12 +271,12 @@ export class ZipArchive {
 			compressed_size,
 			uncompressed_size,
 			file_name,
-      field,
-      data_location
+			field,
+			data_location
 		};
 	}
 
-  private static read_cd (view: DataView, position: number): CD_Block {
+	private static read_cd(view: DataView, position: number): CD_Block {
 		/*
 		 *	4 bytes - Central directory header signature
 		 *	2 bytes - Version made by
@@ -281,7 +299,7 @@ export class ZipArchive {
 		 *  M bytes - Extra field
 		 *  K bytes - File comment
 		 */
-		
+
 		const signature = view.getUint32(position, true);
 
 		assert(signature === HEADER_CD, "Expected Central Directory Record signature");
@@ -305,9 +323,9 @@ export class ZipArchive {
 		const file_name = decode_utf8_string(view.buffer, position + 46, name_length);
 		const field = new Uint8Array(view.buffer, position + 46 + name_length, name_length);
 		const comment = decode_utf8_string(view.buffer, position + 46 + name_length + field_length, comment_length);
-        
-    const size = 46 + name_length + field_length + comment_length;
-		
+
+		const size = 46 + name_length + field_length + comment_length;
+
 		return {
 			version,
 			min_version,
@@ -324,27 +342,25 @@ export class ZipArchive {
 			local_position,
 			file_name,
 			field,
-      comment,
-      size
+			comment,
+			size
 		};
-  }
+	}
 
-  private static find_eocdr (view: DataView): number {
-    const length = view.byteLength;
+	private static find_eocdr(view: DataView): number {
+		const length = view.byteLength;
 		let position = length - 4;
-		
-		while (position--)
-		{
-			if (view.getUint32(position, true) == HEADER_EOCDR)
-			{
+
+		while (position--) {
+			if (view.getUint32(position, true) == HEADER_EOCDR) {
 				return position;
 			}
 		}
-		
-		throw new Error("No end of central directory record found");
-  }
 
-  private static read_eocdr (view: DataView, position: number): EOCDR_Block {
+		throw new Error("No end of central directory record found");
+	}
+
+	private static read_eocdr(view: DataView, position: number): EOCDR_Block {
 		/*
 		 * 	4 bytes - End of Central directory header signature
 		 *	2 bytes - Number of disk
@@ -369,7 +385,7 @@ export class ZipArchive {
 		const cd_offset = view.getUint32(position + 16, true);
 		const commentLength = view.getUint16(position + 20, true);
 		const comment = decode_utf8_string(view.buffer, position + 22, commentLength);
-		
+
 		return {
 			disk,
 			start_disk,
@@ -379,10 +395,10 @@ export class ZipArchive {
 			cd_offset,
 			comment
 		};
-  }
+	}
 
-  private generate_eocdr (cd_location: number, cd_size: number, records: number): ArrayBuffer {
-		
+	private generate_eocdr(cd_location: number, cd_size: number, records: number): ArrayBuffer {
+
 		const N = this.comment ? this.comment.length : 0;
 		const length = 22 + N;
 		const buffer = new ArrayBuffer(length);
@@ -415,28 +431,28 @@ export class ZipArchive {
 		}
 
 		return buffer;
-  }
-	
-	private async calculate_crc (blob: Blob): Promise<number> {
+	}
+
+	private async calculate_crc(blob: Blob): Promise < number > {
 		const buffer = await new Response(blob).arrayBuffer();
 		const bytes = new Uint8Array(buffer);
 
 		return crc32(bytes);
 	}
 
-	private set_internal (file_name: string, file: Blob, compresion: number, size: number, crc: number) {
+	private set_internal(file_name: string, file: Blob, compresion: number, size: number, crc: number) {
 		const norm_file_name = this.normalise_file_name(file_name);
 		const entry = new ZipEntry(file, compresion, size, crc);
 		this.entries.set(norm_file_name, entry);
 		return entry;
 	}
 
-	private normalise_file_name (file_name: string): string {
+	private normalise_file_name(file_name: string): string {
 		const slash_regex = /[\\|/]/g;
 		return file_name.replace(slash_regex, "/");
 	}
-	
-	private verify_path (name: string) {
+
+	private verify_path(name: string) {
 		const slash_regex = /[\\|/]/g;
 		const part_regex = /^[\w\-. ]+$/;
 		const parts = name.split(slash_regex);
@@ -446,10 +462,12 @@ export class ZipArchive {
 			assert(part_regex.test(part) || part === ".." || part === ".", `Invalid path "${name}"`);
 		}
 	}
-	
-	private async compress_blob (file: Blob): Promise<Blob> {
+
+	private async compress_blob(file: Blob): Promise < Blob > {
 		return await compress(file);
 	}
 }
 
-export { ZipEntry };
+export {
+	ZipEntry
+};
