@@ -156,7 +156,7 @@ class ZipEntry {
     async get_blob() {
         if (this.compression === 8)
             return this.decompress();
-        assert(this.compression !== 0, "Incompatible compression type");
+        assert(this.compression === 0, "Incompatible compression type");
         return this.blob;
     }
     async get_array_buffer() {

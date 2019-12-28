@@ -175,7 +175,7 @@ export class ZipEntry {
 		if (this.compression === 8)
 			return this.decompress();
 
-		assert(this.compression !== 0, "Incompatible compression type");
+		assert(this.compression === 0, "Incompatible compression type");
 		return this.blob;
 	}
 
