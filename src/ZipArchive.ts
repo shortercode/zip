@@ -25,6 +25,9 @@ import {
 	crc32
 } from "./crc32.js";
 
+const MAX_TASK_TIME = 32;
+const INTER_TASK_PAUSE = 16;
+
 function NOT_IMPLEMENTED(name: string) {
 	throw new Error(`${name} is not implemented`);
 }
@@ -174,6 +177,12 @@ export class ZipArchive {
 		let position = 0;
 		const offset = eocdr.cd_offset
 		const length = eocdr.cd_length;
+		let task_start_time = Date.now();
+
+		async function pause (duration: number) {
+			return new Promise(resolve => setTimeout(resolve, duration))
+		}
+
 		while (position < length) {
 			const signature = view.getUint32(position + offset, true);
 
@@ -211,6 +220,13 @@ export class ZipArchive {
 				zip_entry.internal_file_attr = internal;
 				zip_entry.external_file_attr = external;
 				zip_entry.modified = date_from_dos_time(entry.date, entry.time);
+				const current_time = Date.now();
+				const delta_time = current_time - task_start_time;
+
+				if (delta_time > MAX_TASK_TIME) {
+					await pause(INTER_TASK_PAUSE);
+					task_start_time = Date.now();
+				}
 			}
 
 		}
@@ -323,7 +339,7 @@ export class ZipArchive {
 		const external = view.getUint32(position + 38, true);
 		const local_position = view.getUint32(position + 42, true);
 		const file_name = decode_utf8_string(view.buffer, position + 46, name_length);
-		const field = new Uint8Array(view.buffer, position + 46 + name_length, name_length);
+		const field = new Uint8Array(view.buffer, position + 46 + name_length, field_length);
 		const comment = decode_utf8_string(view.buffer, position + 46 + name_length + field_length, comment_length);
 
 		const size = 46 + name_length + field_length + comment_length;
