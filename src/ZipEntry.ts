@@ -40,8 +40,8 @@ export class ZipEntry {
 		return this.blob.size;
 	}
 	
-    private async decompress(): Promise<Blob> {
-        const existing = inflated_entries.get(this.blob);
+  private async decompress(): Promise<Blob> {
+    const existing = inflated_entries.get(this.blob);
 		if (existing)
 			return existing;
 		else {
@@ -49,9 +49,9 @@ export class ZipEntry {
 			inflated_entries.set(this.blob, result);
             return result;
 		}
-    }
+  }
     
-    generate_local (filename: string): ArrayBuffer {
+  generate_local (filename: string): ArrayBuffer {
 		const encoded_filename = encode_utf8_string(filename);
 		const N = encoded_filename.length;
 		const M = this.extra ? this.extra.length : 0;
@@ -99,14 +99,14 @@ export class ZipEntry {
 		// might be a 12 - 16 byte footer here, depending on the value of flag
 
 		return buffer;
-    }
+  }
 
-    generate_cd (filename: string, local_position: number): ArrayBuffer {
+  generate_cd (filename: string, local_position: number): ArrayBuffer {
 		const encoded_filename = encode_utf8_string(filename);
 		const N = encoded_filename.length;
 		const M = this.extra ? this.extra.length : 0;
 		const K = this.comment ? this.comment.length : 0;
-        const length = 46 + M + N + K;
+    const length = 46 + M + N + K;
 		const buffer = new ArrayBuffer(length);
 		const view = new DataView(buffer);
 		const uintview = new Uint8Array(buffer);
@@ -154,22 +154,22 @@ export class ZipEntry {
 		view.setUint32(38, this.external_file_attr & 0xFFFFFFFF, true);
 		view.setUint32(42, local_position, true);
 
-        uintview.set(encoded_filename, 46);
+    uintview.set(encoded_filename, 46);
 
 		if (this.extra) {
 			uintview.set(this.extra, 46 + N);
 		}
 
-        if (this.comment) {
+    if (this.comment) {
 			uintview.set(this.comment, 46 + N + M);
-        }
+    }
         
-        return buffer;
-    }
+  	return buffer;
+	}
 
-    get_backing_object (): Blob {
-        return this.blob;
-    }
+  get_backing_object (): Blob {
+    return this.blob;
+  }
 	
 	async get_blob (): Promise<Blob> {
 		if (this.compression === 8)
