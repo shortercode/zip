@@ -21,7 +21,7 @@ The `has()` method returns a boolean indicating whether a ZipEntry with the spec
 import { ZipArchive } from "./zip.js";
 
 const archive = new ZipArchive;
-archive.set("hello.txt", "hello world");
+await archive.set("hello.txt", "hello world");
 
 console.log(archive.has("hello.txt"));
 // expected output: true
@@ -38,7 +38,7 @@ The `get()` method returns a ZipEntry if one with a matching file name is presen
 import { ZipArchive } from "./zip.js";
 
 const archive = new ZipArchive;
-archive.set("hello.txt", "hello world");
+await archive.set("hello.txt", "hello world");
 
 console.log(archive.get("hello.txt"));
 // expected output: ZipEntry
@@ -47,15 +47,15 @@ console.log(archive.get("avatar.png"));
 ```
 
 ### Creating or updating an entry within an archive
-`ZipArchive.prototype.set(file_name: string, file: Blob): ZipEntry`
+`ZipArchive.prototype.set(file_name: string, file: Blob): Promise<ZipEntry>`
 
-The `set()` method adds or replaces a ZipEntry with a new enty created from a specific file name and a Blob.
+The `set()` method adds or replaces a ZipEntry with a new entry created from a specific file name and a Blob. It is asyncronous, and returns a Promise that resolves to the new ZipEntry object.
 
 ```javascript
 import { ZipArchive } from "./zip.js";
 
 const archive = new ZipArchive;
-archive.set("hello.txt", "hello world");
+await archive.set("hello.txt", "hello world");
 
 console.log(await archive.get("hello.txt").get_string());
 // expected output: "hello world"
@@ -70,7 +70,7 @@ The `compress_entry()` method replaces an existing ZipEntry with a promise that 
 import { ZipArchive } from "./zip.js";
 
 const archive = new ZipArchive;
-archive.set("hello.txt", "hello world");
+await archive.set("hello.txt", "hello world");
 
 await archive.compress_entry("hello.txt");
 // expected output: ZipEntry
@@ -85,7 +85,7 @@ The `to_blob()` method serializes the ZipArchive in the Zip format and returns t
 import { ZipArchive } from "./zip.js";
 
 const archive = new ZipArchive;
-archive.set("hello.txt", "hello world");
+await archive.set("hello.txt", "hello world");
 
 const blob = archive.to_blob();
 // expected output: Blob
@@ -100,8 +100,8 @@ The `files()` method returns a new iterator object that contains `[file_name, en
 import { ZipArchive } from "./zip.js";
 
 const archive = new ZipArchive;
-archive.set("hello.txt", "hello world");
-archive.set("data.bin", new Uint8Array(1024));
+await archive.set("hello.txt", "hello world");
+await archive.set("data.bin", new Uint8Array(1024));
 
 console.log(iterator1.next().value);
 // expected output: ["hello.txt", ZipEntry]
@@ -125,3 +125,72 @@ input_element.addEventListener("change", async e => {
   // expected output: ZipArchive
 });
 ```
+
+### Properties of a ZipEntry
+
+`ZipEntry.prototype.compressed_size: number`
+The **readonly** size of the entry in bytes, if the entry is not compressed then it will be the same as the uncompressed_size.
+
+`ZipEntry.prototype.uncompressed_size: number`
+The **readonly** full size of the entry in bytes ( as if it was decompressed ), if the entry is not compressed then it will be the same as the compressed_size.
+
+`ZipEntry.prototype.size: number`
+
+An alias for uncompressed_size.
+
+`ZipEntry.prototype.is_compressed: boolean`
+
+A **readonly** boolean value denoting if the entry is compressed or not.
+
+`ZipEntry.prototype.compression: number`
+
+A **readonly** numerical value denoting the type of compression used by the entry. 0 being no compression and 8 being DEFLATE which is the standard compression type for entries within a zip file. The library does not support compressing an entry with anything other than DEFLATE, or reading the contents of a entry that is compressed with something other than DEFLATE. However, you read and modify the properties of the entry with other compression types.
+
+`ZipEntry.prototype.modified: Date`
+
+The last modified date of the entry, as a JS Date object. This value is mutable, and will be written to the output when serialising a ZipArchive to a blob.
+
+`ZipEntry.prototype.internal_file_attr: number`
+`ZipEntry.prototype.external_file_attr: number`
+
+The internal/external file attributes flags for the entry. These values are mutable, and preserved when reading/writing.
+
+```javascript
+import { ZipArchive } from "./zip.js";
+
+const archive = new ZipArchive;
+await archive.set("hello.txt", "hello world");
+
+const compressed_entry = await archive.compress_entry("hello.txt");
+
+console.log(compressed_entry.compressed_size);
+// expected output: 11
+console.log(compressed_entry.uncompressed_size);
+// expected output: 13
+console.log(compressed_entry.size);
+// expected output: 13
+console.log(compressed_entry.is_compressed);
+// expected output: true
+console.log(compressed_entry.compression);
+// expected output: 8
+console.log(compressed_entry.modified);
+// expected output: Date
+console.log(compressed_entry.internal_file_attr);
+// expected output: 0
+console.log(compressed_entry.external_file_attr);
+// expected output: 0
+```
+
+### Reading the contents of a ZipEntry
+
+`ZipEntry.prototype.get_blob(): Promise<Blob>`
+
+The `get_blob()` method return a Promise that resolves to a Blob containing the uncompressed contents of the ZipEntry. If the entry is not DEFLATE or STORE then this method will throw an error.
+
+`ZipEntry.prototype.get_array_buffer(): Promise<ArrayBuffer>`
+
+The `get_array_buffer()` method return a Promise that resolves to a ArrayBuffer containing the uncompressed contents of the ZipEntry. If the entry is not DEFLATE or STORE then this method will throw an error.
+
+`ZipEntry.prototype.get_string(): Promise<string>`
+
+The `get_string()` method return a Promise that resolves to a string of the uncompressed contents of the ZipEntry decoded as UTF-8 text. If the entry is not DEFLATE or STORE then this method will throw an error.
