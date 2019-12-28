@@ -78,14 +78,14 @@ export class ZipArchive {
 	
 	copy (from: string, to: string) {
 		this.verify_path(from);
-        this.verify_path(to);
-        NOT_IMPLEMENTED("ZipArchive.copy");
+    this.verify_path(to);
+    NOT_IMPLEMENTED("ZipArchive.copy");
 	}
 	
 	move (from: string, to: string) {
 		this.verify_path(from);
-        this.verify_path(to);
-        NOT_IMPLEMENTED("ZipArchive.move");
+    this.verify_path(to);
+    NOT_IMPLEMENTED("ZipArchive.move");
 	}
 	
 	async compress_entry (file_name: string) {
@@ -109,48 +109,47 @@ export class ZipArchive {
 	}
 	
 	to_blob (): Blob {
-        const parts: BlobPart[] = [];
+		const parts: BlobPart[] = [];
 
-        let offset = 0;
+		let offset = 0;
 
-        const directories = [];
+		const directories = [];
 
-        for (const [name, entry] of this.entries) {
-            const location = offset;
-            const local = entry.generate_local(name);
-            const file = entry.get_backing_object();
+		for (const [name, entry] of this.entries) {
+			const location = offset;
+			const local = entry.generate_local(name);
+			const file = entry.get_backing_object();
 
-            offset += local.byteLength + file.size;
-            parts.push(local, file);
+			offset += local.byteLength + file.size;
+			parts.push(local, file);
 
-            const cd = entry.generate_cd(name, location);
-            directories.push(cd);
-        }
+			const cd = entry.generate_cd(name, location);
+			directories.push(cd);
+		}
 
 		const cd_offset = offset;
 		let cd_length = 0;
 
-        for (const cd of directories) {
+    for (const cd of directories) {
 			parts.push(cd);
 			cd_length += cd.byteLength;
-        }
+    }
 
 		const eocdr = this.generate_eocdr(cd_offset, cd_length, directories.length);
 		parts.push(eocdr);
-
-        return new Blob(parts);
-    }
+    return new Blob(parts);
+	}
     
-    files (): Iterator<[string, ZipEntry]> {
-        return this.entries.entries();
+  files (): Iterator<[string, ZipEntry]> {
+    return this.entries.entries();
 	}
 	
 	static async from_blob (blob: Blob): Promise<ZipArchive> {
 		const archive = new ZipArchive;
 		const buffer = await new Response(blob).arrayBuffer();
-        const view = new DataView(buffer);
+    const view = new DataView(buffer);
 
-        const eocdr_position = this.find_eocdr(view);
+    const eocdr_position = this.find_eocdr(view);
 		const eocdr = this.read_eocdr(view, eocdr_position);
 		
 		let position = 0;
@@ -196,7 +195,7 @@ export class ZipArchive {
 		}
 		
 		return archive;
-    }
+  }
 
 	static set_compression_function (fn: (input: Blob) => Promise<Blob>) {
 		set_compression_function(fn);
@@ -206,7 +205,7 @@ export class ZipArchive {
 		set_decompression_function(fn);
 	}
 
-    private static read_local (view: DataView, position: number): LD_Block
+  private static read_local (view: DataView, position: number): LD_Block
 	{
 		/*
 		 *	4 bytes - Local file header signature
@@ -254,12 +253,12 @@ export class ZipArchive {
 			compressed_size,
 			uncompressed_size,
 			file_name,
-            field,
-            data_location
+      field,
+      data_location
 		};
 	}
 
-    private static read_cd (view: DataView, position: number): CD_Block {
+  private static read_cd (view: DataView, position: number): CD_Block {
 		/*
 		 *	4 bytes - Central directory header signature
 		 *	2 bytes - Version made by
@@ -307,7 +306,7 @@ export class ZipArchive {
 		const field = new Uint8Array(view.buffer, position + 46 + name_length, name_length);
 		const comment = decode_utf8_string(view.buffer, position + 46 + name_length + field_length, comment_length);
         
-        const size = 46 + name_length + field_length + comment_length;
+    const size = 46 + name_length + field_length + comment_length;
 		
 		return {
 			version,
@@ -325,13 +324,13 @@ export class ZipArchive {
 			local_position,
 			file_name,
 			field,
-            comment,
-            size
+      comment,
+      size
 		};
-    }
+  }
 
-    private static find_eocdr (view: DataView): number {
-        const length = view.byteLength;
+  private static find_eocdr (view: DataView): number {
+    const length = view.byteLength;
 		let position = length - 4;
 		
 		while (position--)
@@ -343,9 +342,9 @@ export class ZipArchive {
 		}
 		
 		throw new Error("No end of central directory record found");
-    }
+  }
 
-    private static read_eocdr (view: DataView, position: number): EOCDR_Block {
+  private static read_eocdr (view: DataView, position: number): EOCDR_Block {
 		/*
 		 * 	4 bytes - End of Central directory header signature
 		 *	2 bytes - Number of disk
@@ -380,9 +379,9 @@ export class ZipArchive {
 			cd_offset,
 			comment
 		};
-    }
+  }
 
-    private generate_eocdr (cd_location: number, cd_size: number, records: number): ArrayBuffer {
+  private generate_eocdr (cd_location: number, cd_size: number, records: number): ArrayBuffer {
 		
 		const N = this.comment ? this.comment.length : 0;
 		const length = 22 + N;
@@ -416,7 +415,7 @@ export class ZipArchive {
 		}
 
 		return buffer;
-    }
+  }
 	
 	private async calculate_crc (blob: Blob): Promise<number> {
 		const buffer = await new Response(blob).arrayBuffer();
