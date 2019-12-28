@@ -25,6 +25,7 @@ export class ZipEntry {
 
 	internal_file_attr: number = 0
 	external_file_attr: number = 0
+	bit_flag: number = 0
 	modified: Date = new Date
 
 	readonly crc: number
@@ -91,7 +92,7 @@ export class ZipEntry {
 
 		view.setUint32(0, HEADER_LOCAL, true);
 		view.setUint16(4, ZIP_VERSION, true);
-		view.setUint16(6, 0, true); // TODO add correct bit flag
+		view.setUint16(6, this.bit_flag, true);
 		view.setUint16(8, this.compression, true);
 		view.setUint16(10, time, true);
 		view.setUint16(12, date, true);
@@ -150,7 +151,7 @@ export class ZipEntry {
 		view.setUint32(0, HEADER_CD, true);
 		view.setUint16(4, ZIP_VERSION, true);
 		view.setUint16(6, ZIP_VERSION, true);
-		view.setUint16(8, 0, true); // TODO add correct bit flag
+		view.setUint16(8, this.bit_flag & 0xFFFF, true);
 		view.setUint16(10, this.compression, true);
 		view.setUint16(12, time, true);
 		view.setUint16(14, date, true);

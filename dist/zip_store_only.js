@@ -63,6 +63,7 @@ class ZipEntry {
     constructor(blob, compression_type, size, crc) {
         this.internal_file_attr = 0;
         this.external_file_attr = 0;
+        this.bit_flag = 0;
         this.modified = new Date;
         this.compression = compression_type;
         this.blob = blob;
@@ -99,7 +100,7 @@ class ZipEntry {
         const [date, time] = dos_time_from_date(this.modified);
         view.setUint32(0, HEADER_LOCAL, true);
         view.setUint16(4, ZIP_VERSION, true);
-        view.setUint16(6, 0, true);
+        view.setUint16(6, this.bit_flag, true);
         view.setUint16(8, this.compression, true);
         view.setUint16(10, time, true);
         view.setUint16(12, date, true);
@@ -127,7 +128,7 @@ class ZipEntry {
         view.setUint32(0, HEADER_CD, true);
         view.setUint16(4, ZIP_VERSION, true);
         view.setUint16(6, ZIP_VERSION, true);
-        view.setUint16(8, 0, true);
+        view.setUint16(8, this.bit_flag & 0xFFFF, true);
         view.setUint16(10, this.compression, true);
         view.setUint16(12, time, true);
         view.setUint16(14, date, true);
@@ -310,9 +311,10 @@ class ZipArchive {
             }
             else {
                 const { data_location } = this.read_local(view, entry.local_position);
-                const { uncompressed_size, compressed_size, compression, file_name, internal, external, crc } = entry;
+                const { uncompressed_size, compressed_size, compression, flag, file_name, internal, external, crc } = entry;
                 const subblob = blob.slice(data_location, data_location + compressed_size);
                 const zip_entry = archive.set_internal(file_name, subblob, compression, uncompressed_size, crc);
+                zip_entry.bit_flag = flag;
                 zip_entry.internal_file_attr = internal;
                 zip_entry.external_file_attr = external;
                 zip_entry.modified = date_from_dos_time(entry.date, entry.time);

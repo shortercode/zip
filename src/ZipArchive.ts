@@ -197,6 +197,7 @@ export class ZipArchive {
 					uncompressed_size,
 					compressed_size,
 					compression,
+					flag,
 					file_name,
 					internal,
 					external,
@@ -206,6 +207,7 @@ export class ZipArchive {
 				const subblob = blob.slice(data_location, data_location + compressed_size);
 				const zip_entry = archive.set_internal(file_name, subblob, compression, uncompressed_size, crc);
 
+				zip_entry.bit_flag = flag;
 				zip_entry.internal_file_attr = internal;
 				zip_entry.external_file_attr = external;
 				zip_entry.modified = date_from_dos_time(entry.date, entry.time);
