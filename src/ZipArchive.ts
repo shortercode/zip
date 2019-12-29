@@ -24,6 +24,9 @@ import {
 import {
 	crc32
 } from "./crc32.js";
+import { 
+	BlobSlice
+} from "./BlobSlice.js";
 
 const MAX_TASK_TIME = 32;
 const INTER_TASK_PAUSE = 16;
@@ -95,7 +98,7 @@ export class ZipArchive {
 
 		file = file instanceof Blob ? file : new Blob([file]);
 		const crc = await this.calculate_crc(file);
-		return this.set_internal(file_name, file, 0, file.size, crc);
+		return this.set_internal(file_name, new BlobSlice(file), 0, file.size, crc);
 	}
 
 	copy(from: string, to: string) {
@@ -119,7 +122,7 @@ export class ZipArchive {
 			const original_size = blob.size;
 			const deflated_blob = await this.compress_blob(blob);
 			// NOTE crc is generated from the uncompressed buffer
-			return this.set_internal(file_name, deflated_blob, 8, original_size, entry.crc);
+			return this.set_internal(file_name, new BlobSlice(deflated_blob), 8, original_size, entry.crc);
 		}
 		return entry;
 	}
@@ -213,8 +216,8 @@ export class ZipArchive {
 					crc
 				} = entry;
 
-				const subblob = blob.slice(data_location, data_location + compressed_size);
-				const zip_entry = archive.set_internal(file_name, subblob, compression, uncompressed_size, crc);
+				const blob_slice = new BlobSlice(blob, data_location, compressed_size);
+				const zip_entry = archive.set_internal(file_name, blob_slice, compression, uncompressed_size, crc);
 
 				zip_entry.bit_flag = flag;
 				zip_entry.internal_file_attr = internal;
@@ -458,7 +461,7 @@ export class ZipArchive {
 		return crc32(bytes);
 	}
 
-	private set_internal(file_name: string, file: Blob, compresion: number, size: number, crc: number) {
+	private set_internal(file_name: string, file: BlobSlice, compresion: number, size: number, crc: number) {
 		const norm_file_name = this.normalise_file_name(file_name);
 		const entry = new ZipEntry(file, compresion, size, crc);
 		this.entries.set(norm_file_name, entry);

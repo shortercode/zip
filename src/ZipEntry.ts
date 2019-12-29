@@ -14,12 +14,15 @@ import {
 import {
 	dos_time_from_date
 } from "./dos_time.js";
+import {
+	BlobSlice
+} from "./BlobSlice.js";
 
 const ZIP_VERSION = 20;
-const inflated_entries: WeakMap < Blob, Blob > = new WeakMap
+const inflated_entries: WeakMap < BlobSlice, Blob > = new WeakMap
 
 export class ZipEntry {
-	private readonly blob: Blob
+	private readonly blob_slice: BlobSlice
 	private extra ? : Uint8Array
 	private comment ? : Uint8Array
 
@@ -36,9 +39,9 @@ export class ZipEntry {
 		return this.compression !== 0;
 	}
 
-	constructor(blob: Blob, compression_type: number, size: number, crc: number) {
+	constructor(blob: BlobSlice, compression_type: number, size: number, crc: number) {
 		this.compression = compression_type;
-		this.blob = blob;
+		this.blob_slice = blob;
 		this.uncompressed_size = size;
 		this.crc = crc;
 	}
@@ -49,16 +52,16 @@ export class ZipEntry {
 	}
 
 	get compressed_size(): number {
-		return this.blob.size;
+		return this.blob_slice.size;
 	}
 
 	private async decompress(): Promise < Blob > {
-		const existing = inflated_entries.get(this.blob);
+		const existing = inflated_entries.get(this.blob_slice);
 		if (existing)
 			return existing;
 		else {
-			const result = await decompress(this.blob);
-			inflated_entries.set(this.blob, result);
+			const result = await decompress(this.blob_slice.get_blob());
+			inflated_entries.set(this.blob_slice, result);
 			return result;
 		}
 	}
@@ -180,7 +183,7 @@ export class ZipEntry {
 	}
 
 	get_backing_object(): Blob {
-		return this.blob;
+		return this.blob_slice.get_blob();
 	}
 
 	async get_blob(): Promise < Blob > {
@@ -188,7 +191,7 @@ export class ZipEntry {
 			return this.decompress();
 
 		assert(this.compression === 0, "Incompatible compression type");
-		return this.blob;
+		return this.blob_slice.get_blob();
 	}
 
 	async get_array_buffer(): Promise < ArrayBuffer > {

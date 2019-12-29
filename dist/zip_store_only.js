@@ -66,7 +66,7 @@ class ZipEntry {
         this.bit_flag = 0;
         this.modified = new Date;
         this.compression = compression_type;
-        this.blob = blob;
+        this.blob_slice = blob;
         this.uncompressed_size = size;
         this.crc = crc;
     }
@@ -77,15 +77,15 @@ class ZipEntry {
         return this.uncompressed_size;
     }
     get compressed_size() {
-        return this.blob.size;
+        return this.blob_slice.size;
     }
     async decompress() {
-        const existing = inflated_entries.get(this.blob);
+        const existing = inflated_entries.get(this.blob_slice);
         if (existing)
             return existing;
         else {
-            const result = await decompress(this.blob);
-            inflated_entries.set(this.blob, result);
+            const result = await decompress(this.blob_slice.get_blob());
+            inflated_entries.set(this.blob_slice, result);
             return result;
         }
     }
@@ -152,13 +152,13 @@ class ZipEntry {
         return buffer;
     }
     get_backing_object() {
-        return this.blob;
+        return this.blob_slice.get_blob();
     }
     async get_blob() {
         if (this.compression === 8)
             return this.decompress();
         assert(this.compression === 0, "Incompatible compression type");
-        return this.blob;
+        return this.blob_slice.get_blob();
     }
     async get_array_buffer() {
         const blob = await this.get_blob();
@@ -219,6 +219,23 @@ function crc32(bytes, crc = 0) {
     return (~bytes.reduce((crc, v) => CRC_LOOKUP[(crc ^ v) & 0xFF] ^ (crc >>> 8), ~crc)) >>> 0;
 }
 
+class BlobSlice {
+    constructor(blob, offset = 0, length = blob.size) {
+        this.start = offset;
+        this.end = offset + length;
+        this.blob = blob;
+        this.is_whole = offset === 0 && length === blob.size;
+    }
+    get size() {
+        return this.end - this.start;
+    }
+    get_blob() {
+        if (this.is_whole)
+            return this.blob;
+        return this.blob.slice(this.start, this.end);
+    }
+}
+
 const MAX_TASK_TIME = 32;
 const INTER_TASK_PAUSE = 16;
 function NOT_IMPLEMENTED(name) {
@@ -240,7 +257,7 @@ class ZipArchive {
         this.verify_path(file_name);
         file = file instanceof Blob ? file : new Blob([file]);
         const crc = await this.calculate_crc(file);
-        return this.set_internal(file_name, file, 0, file.size, crc);
+        return this.set_internal(file_name, new BlobSlice(file), 0, file.size, crc);
     }
     copy(from, to) {
         this.verify_path(from);
@@ -260,7 +277,7 @@ class ZipArchive {
             const blob = await entry.get_blob();
             const original_size = blob.size;
             const deflated_blob = await this.compress_blob(blob);
-            return this.set_internal(file_name, deflated_blob, 8, original_size, entry.crc);
+            return this.set_internal(file_name, new BlobSlice(deflated_blob), 8, original_size, entry.crc);
         }
         return entry;
     }
@@ -318,8 +335,8 @@ class ZipArchive {
             else {
                 const { data_location } = this.read_local(view, entry.local_position);
                 const { uncompressed_size, compressed_size, compression, flag, file_name, internal, external, crc } = entry;
-                const subblob = blob.slice(data_location, data_location + compressed_size);
-                const zip_entry = archive.set_internal(file_name, subblob, compression, uncompressed_size, crc);
+                const blob_slice = new BlobSlice(blob, data_location, compressed_size);
+                const zip_entry = archive.set_internal(file_name, blob_slice, compression, uncompressed_size, crc);
                 zip_entry.bit_flag = flag;
                 zip_entry.internal_file_attr = internal;
                 zip_entry.external_file_attr = external;
