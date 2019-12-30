@@ -92,13 +92,25 @@ export class ZipArchive {
 		this.verify_path(file_name);
 		return this.entries.get(this.normalise_file_name(file_name));
 	}
-
+	
 	async set(file_name: string, file: Blob | string | ArrayBuffer): Promise < ZipEntry > {
 		this.verify_path(file_name);
 
 		file = file instanceof Blob ? file : new Blob([file]);
 		const crc = await this.calculate_crc(file);
 		return this.set_internal(file_name, new BlobSlice(file), 0, file.size, crc);
+	}
+
+	set_folder(file_name: string) {
+		const norm_name = this.normalise_file_name(file_name);
+		const trimmed_name = norm_name.endsWith("/") ? norm_name.slice(0, -1) : norm_name;
+		
+		this.verify_path(trimmed_name);
+		const empty_file = new BlobSlice(new Blob([]));
+		const crc = crc32(new Uint8Array(0));
+		const entry = new ZipEntry(empty_file, 0, 0, crc);
+		this.entries.set(trimmed_name + "/", entry);
+		return entry;
 	}
 
 	copy(from: string, to: string) {
@@ -202,7 +214,7 @@ export class ZipArchive {
 			position += entry.size;
 
 			if (entry.file_name.endsWith("/")) {
-				// TODO we currently ignore folders, as they are optional in the ZIP spec
+				archive.set_folder(entry.file_name);
 			} else {
 				// NOTE local data is often invalid, so only use the data position value from it
 				// ( everything else can come from the CD entry )
