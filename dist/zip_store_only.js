@@ -370,12 +370,14 @@ class ZipArchive {
             }
             else {
                 const { data_location } = this.read_local(view, entry.local_position);
-                const { uncompressed_size, compressed_size, compression, flag, file_name, internal, external, crc } = entry;
+                const { uncompressed_size, compressed_size, compression, flag, file_name, internal, external, crc, extra, comment } = entry;
                 const blob_slice = new BlobSlice(blob, data_location, compressed_size);
                 const zip_entry = archive.set_internal(file_name, blob_slice, compression, uncompressed_size, crc);
                 zip_entry.bit_flag = flag;
                 zip_entry.internal_file_attr = internal;
                 zip_entry.external_file_attr = external;
+                zip_entry.extra = extra;
+                zip_entry.comment = comment;
                 zip_entry.modified = date_from_dos_time(entry.date, entry.time);
                 const current_time = Date.now();
                 const delta_time = current_time - task_start_time;
@@ -404,11 +406,11 @@ class ZipArchive {
         const crc = view.getUint32(position + 14, true);
         const compressed_size = view.getUint32(position + 18, true);
         const uncompressed_size = view.getUint32(position + 22, true);
-        const nameLength = view.getUint16(position + 26, true);
-        const fieldLength = view.getUint16(position + 28, true);
-        const file_name = decode_utf8_string(view.buffer, position + 30, nameLength);
-        const field = new Uint8Array(view.buffer, position + 30 + nameLength, fieldLength);
-        const data_location = position + 30 + nameLength + fieldLength;
+        const name_length = view.getUint16(position + 26, true);
+        const extra_length = view.getUint16(position + 28, true);
+        const file_name = decode_utf8_string(view.buffer, position + 30, name_length);
+        const extra = new Uint8Array(view.buffer, position + 30 + name_length, extra_length);
+        const data_location = position + 30 + name_length + extra_length;
         return {
             version,
             flag,
@@ -419,7 +421,7 @@ class ZipArchive {
             compressed_size,
             uncompressed_size,
             file_name,
-            field,
+            extra,
             data_location
         };
     }
@@ -436,16 +438,16 @@ class ZipArchive {
         const compressed_size = view.getUint32(position + 20, true);
         const uncompressed_size = view.getUint32(position + 24, true);
         const name_length = view.getUint16(position + 28, true);
-        const field_length = view.getUint16(position + 30, true);
+        const extra_length = view.getUint16(position + 30, true);
         const comment_length = view.getUint16(position + 32, true);
         const disk = view.getUint16(position + 34, true);
         const internal = view.getUint16(position + 36, true);
         const external = view.getUint32(position + 38, true);
         const local_position = view.getUint32(position + 42, true);
         const file_name = decode_utf8_string(view.buffer, position + 46, name_length);
-        const field = new Uint8Array(view.buffer, position + 46 + name_length, field_length);
-        const comment = decode_utf8_string(view.buffer, position + 46 + name_length + field_length, comment_length);
-        const size = 46 + name_length + field_length + comment_length;
+        const extra = new Uint8Array(view.buffer, position + 46 + name_length, extra_length);
+        const comment = new Uint8Array(view.buffer, position + 46 + name_length + extra_length, comment_length);
+        const size = 46 + name_length + extra_length + comment_length;
         if (compression === 0)
             assert(compressed_size === uncompressed_size, "ucsize != csize for STORED entry");
         return {
@@ -463,15 +465,15 @@ class ZipArchive {
             external,
             local_position,
             file_name,
-            field,
+            extra,
             comment,
             size
         };
     }
     static find_eocdr(view) {
         const length = view.byteLength;
-        let position = length - 4;
-        while (position--) {
+        for (let i = 22; i < 0xFFFF; i++) {
+            const position = length - i;
             if (view.getUint32(position, true) == HEADER_EOCDR) {
                 return position;
             }
@@ -487,8 +489,11 @@ class ZipArchive {
         const total_entries = view.getUint16(position + 10, true);
         const cd_length = view.getUint32(position + 12, true);
         const cd_offset = view.getUint32(position + 16, true);
-        const commentLength = view.getUint16(position + 20, true);
-        const comment = decode_utf8_string(view.buffer, position + 22, commentLength);
+        const comment_length = view.getUint16(position + 20, true);
+        assert(start_disk === 0, "Invalid start disk");
+        assert(disk_entries === total_entries, "Multi-disk archives are not supported");
+        assert(position + 22 + comment_length === view.byteLength, "Invalid comment length");
+        const comment = decode_utf8_string(view.buffer, position + 22, comment_length);
         return {
             disk,
             start_disk,
