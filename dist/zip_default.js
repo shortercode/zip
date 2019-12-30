@@ -1,6 +1,7 @@
 const HEADER_CD = 0x02014b50;
 const HEADER_LOCAL = 0x04034b50;
 const HEADER_EOCDR = 0x06054b50;
+const HEADER_DATA_DESCRIPTOR = 0x08074b50;
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -104,9 +105,11 @@ class ZipEntry {
         view.setUint16(8, this.compression, true);
         view.setUint16(10, time, true);
         view.setUint16(12, date, true);
-        view.setUint32(16, this.crc, true);
-        view.setUint32(20, this.compressed_size, true);
-        view.setUint32(24, this.uncompressed_size, true);
+        if (!(this.bit_flag & 0b1000)) {
+            view.setUint32(16, this.crc, true);
+            view.setUint32(20, this.compressed_size, true);
+            view.setUint32(24, this.uncompressed_size, true);
+        }
         view.setUint16(26, encoded_filename.length, true);
         view.setUint16(28, M, true);
         uintview.set(encoded_filename, 30);
@@ -149,6 +152,16 @@ class ZipEntry {
         if (this.comment) {
             uintview.set(this.comment, 46 + N + M);
         }
+        return buffer;
+    }
+    generate_data_descriptor() {
+        const length = 16;
+        const buffer = new ArrayBuffer(length);
+        const view = new DataView(buffer);
+        view.setUint32(0, HEADER_DATA_DESCRIPTOR, true);
+        view.setUint32(4, this.crc, true);
+        view.setUint32(8, this.compressed_size, true);
+        view.setUint32(12, this.uncompressed_size, true);
         return buffer;
     }
     get_backing_object() {
@@ -253,11 +266,28 @@ class ZipArchive {
         this.verify_path(file_name);
         return this.entries.get(this.normalise_file_name(file_name));
     }
+    delete(file_name) {
+        const norm_name = this.normalise_file_name(file_name);
+        const is_folder = norm_name.endsWith("/");
+        const trimmed_name = is_folder ? norm_name.slice(0, -1) : norm_name;
+        this.verify_path(trimmed_name);
+        return this.entries.delete(is_folder ? trimmed_name + "/" : trimmed_name);
+    }
     async set(file_name, file) {
         this.verify_path(file_name);
         file = file instanceof Blob ? file : new Blob([file]);
         const crc = await this.calculate_crc(file);
         return this.set_internal(file_name, new BlobSlice(file), 0, file.size, crc);
+    }
+    set_folder(file_name) {
+        const norm_name = this.normalise_file_name(file_name);
+        const trimmed_name = norm_name.endsWith("/") ? norm_name.slice(0, -1) : norm_name;
+        this.verify_path(trimmed_name);
+        const empty_file = new BlobSlice(new Blob([]));
+        const crc = crc32(new Uint8Array(0));
+        const entry = new ZipEntry(empty_file, 0, 0, crc);
+        this.entries.set(trimmed_name + "/", entry);
+        return entry;
     }
     copy(from, to) {
         this.verify_path(from);
@@ -291,11 +321,20 @@ class ZipArchive {
         let offset = 0;
         const directories = [];
         for (const [name, entry] of this.entries) {
+					if (name === "Lox/util/env/bin/python3")
+										debugger;
+										
             const location = offset;
             const local = entry.generate_local(name);
             const file = entry.get_backing_object();
             offset += local.byteLength + file.size;
-            parts.push(local, file);
+						parts.push(local, file);
+						
+            if (entry.bit_flag & 0b1000) {
+                const data_descriptor = entry.generate_data_descriptor();
+                parts.push(data_descriptor);
+                offset += data_descriptor.byteLength;
+            }
             const cd = entry.generate_cd(name, location);
             directories.push(cd);
         }
@@ -331,6 +370,7 @@ class ZipArchive {
             const entry = this.read_cd(view, position + offset);
             position += entry.size;
             if (entry.file_name.endsWith("/")) {
+                archive.set_folder(entry.file_name);
             }
             else {
                 const { data_location } = this.read_local(view, entry.local_position);
@@ -410,6 +450,8 @@ class ZipArchive {
         const field = new Uint8Array(view.buffer, position + 46 + name_length, field_length);
         const comment = decode_utf8_string(view.buffer, position + 46 + name_length + field_length, comment_length);
         const size = 46 + name_length + field_length + comment_length;
+        if (compression === 0)
+            assert(compressed_size === uncompressed_size, "ucsize != csize for STORED entry");
         return {
             version,
             min_version,
@@ -497,7 +539,7 @@ class ZipArchive {
     }
     verify_path(name) {
         const slash_regex = /[\\|/]/g;
-        const part_regex = /^[\w\-. ]+$/;
+        const part_regex = /^[\w@\-. ]+$/;
         const parts = name.split(slash_regex);
         for (const part of parts) {
             assert(part_regex.test(part) || part === ".." || part === ".", `Invalid path "${name}"`);

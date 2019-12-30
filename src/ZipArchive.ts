@@ -144,9 +144,16 @@ export class ZipArchive {
 			const location = offset;
 			const local = entry.generate_local(name);
 			const file = entry.get_backing_object();
-
+			
 			offset += local.byteLength + file.size;
 			parts.push(local, file);
+
+			// NOTE only generate data descriptor if bit 3 of the bit flag is set
+			if (entry.bit_flag & 0b1000) {
+				const data_descriptor = entry.generate_data_descriptor();
+				parts.push(data_descriptor);
+				offset += data_descriptor.byteLength;
+			}
 
 			const cd = entry.generate_cd(name, location);
 			directories.push(cd);
@@ -195,10 +202,8 @@ export class ZipArchive {
 			position += entry.size;
 
 			if (entry.file_name.endsWith("/")) {
-				// folder
 				// TODO we currently ignore folders, as they are optional in the ZIP spec
 			} else {
-				// file
 				// NOTE local data is often invalid, so only use the data position value from it
 				// ( everything else can come from the CD entry )
 

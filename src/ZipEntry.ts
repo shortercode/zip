@@ -1,6 +1,7 @@
 import {
 	HEADER_CD,
-	HEADER_LOCAL
+	HEADER_LOCAL,
+	HEADER_DATA_DESCRIPTOR
 } from "./constants.js";
 import {
 	encode_utf8_string
@@ -25,7 +26,7 @@ export class ZipEntry {
 	private readonly blob_slice: BlobSlice
 	private extra ? : Uint8Array
 	private comment ? : Uint8Array
-
+	
 	internal_file_attr: number = 0
 	external_file_attr: number = 0
 	bit_flag: number = 0
@@ -99,9 +100,13 @@ export class ZipEntry {
 		view.setUint16(8, this.compression, true);
 		view.setUint16(10, time, true);
 		view.setUint16(12, date, true);
-		view.setUint32(16, this.crc, true);
-		view.setUint32(20, this.compressed_size, true);
-		view.setUint32(24, this.uncompressed_size, true);
+		// NOTE set CRC, CSIZE & UCSIZE to 0 if the 3rd bit of the bit flag is set
+		// as the information is included in the data descriptor instead
+		if (!(this.bit_flag & 0b1000)) {
+			view.setUint32(16, this.crc, true);
+			view.setUint32(20, this.compressed_size, true);
+			view.setUint32(24, this.uncompressed_size, true);
+		}
 		view.setUint16(26, encoded_filename.length, true);
 		view.setUint16(28, M, true);
 
@@ -178,6 +183,19 @@ export class ZipEntry {
 		if (this.comment) {
 			uintview.set(this.comment, 46 + N + M);
 		}
+
+		return buffer;
+	}
+
+	generate_data_descriptor () {
+		const length = 16;
+		const buffer = new ArrayBuffer(length);
+		const view = new DataView(buffer);
+
+		view.setUint32(0, HEADER_DATA_DESCRIPTOR, true);
+		view.setUint32(4, this.crc, true);
+		view.setUint32(8, this.compressed_size, true);
+		view.setUint32(12, this.uncompressed_size, true);
 
 		return buffer;
 	}
