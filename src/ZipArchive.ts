@@ -92,7 +92,17 @@ export class ZipArchive {
 		this.verify_path(file_name);
 		return this.entries.get(this.normalise_file_name(file_name));
 	}
-	
+
+	delete(file_name: string) {
+		const norm_name = this.normalise_file_name(file_name);
+		const is_folder = norm_name.endsWith("/");
+		const trimmed_name = is_folder ? norm_name.slice(0, -1) : norm_name;
+		
+		this.verify_path(trimmed_name);
+
+		return this.entries.delete(is_folder ? trimmed_name + "/" : trimmed_name);
+	}
+
 	async set(file_name: string, file: Blob | string | ArrayBuffer): Promise < ZipEntry > {
 		this.verify_path(file_name);
 
