@@ -6,11 +6,11 @@ The latest builds can be found in the "dist" folder. 2 versions are available: "
 
 The code required for compression is quite substantial, hence why an alternative version is available without it.
 
-A version will be published to NPM soon.
+A version with typings will be published to NPM soon.
 
 ## Usage
 
-The class ZipArchive is the primary interface for the library, and has the following public methods:
+The library is based on 2 classes ZipArchive and ZipEntry. ZipArchive is the primary interface, with ZipEntry instances being created and manipulated via the ZipArchive instance.
 
 ### Checking the existance of an entry in an archive
 `ZipArchive.prototype.has(file_name: string): boolean`
