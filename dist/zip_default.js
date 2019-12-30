@@ -259,8 +259,16 @@ class ZipArchive {
         this.entries = new Map;
     }
     has(file_name) {
-        this.verify_path(file_name);
-        return this.entries.has(this.normalise_file_name(file_name));
+        const norm_name = this.normalise_file_name(file_name);
+        const trimmed_name = norm_name.endsWith("/") ? norm_name.slice(0, -1) : norm_name;
+        this.verify_path(trimmed_name);
+        return this.entries.has(trimmed_name + "/") || this.entries.has(trimmed_name);
+    }
+    is_folder(file_name) {
+        const norm_name = this.normalise_file_name(file_name);
+        const trimmed_name = norm_name.endsWith("/") ? norm_name.slice(0, -1) : norm_name;
+        this.verify_path(trimmed_name);
+        return this.entries.has(trimmed_name + "/");
     }
     get(file_name) {
         this.verify_path(file_name);
@@ -268,13 +276,18 @@ class ZipArchive {
     }
     delete(file_name) {
         const norm_name = this.normalise_file_name(file_name);
-        const is_folder = norm_name.endsWith("/");
-        const trimmed_name = is_folder ? norm_name.slice(0, -1) : norm_name;
+        const trimmed_name = norm_name.endsWith("/") ? norm_name.slice(0, -1) : norm_name;
         this.verify_path(trimmed_name);
-        return this.entries.delete(is_folder ? trimmed_name + "/" : trimmed_name);
+        if (this.entries.has(trimmed_name + "/"))
+            return this.entries.delete(trimmed_name + "/");
+        else
+            return this.entries.delete(trimmed_name);
     }
     async set(file_name, file) {
         this.verify_path(file_name);
+        const norm_name = this.normalise_file_name(file_name);
+        if (this.entries.has(norm_name + "/"))
+            throw new Error(`Unable to create ZipEntry; a folder exists at ${norm_name}`);
         file = file instanceof Blob ? file : new Blob([file]);
         const crc = await this.calculate_crc(file);
         return this.set_internal(file_name, new BlobSlice(file), 0, file.size, crc);
@@ -283,6 +296,11 @@ class ZipArchive {
         const norm_name = this.normalise_file_name(file_name);
         const trimmed_name = norm_name.endsWith("/") ? norm_name.slice(0, -1) : norm_name;
         this.verify_path(trimmed_name);
+        if (this.entries.has(trimmed_name))
+            throw new Error(`Unable to create folder; entry already exists at ${trimmed_name}`);
+        const existing_entry = this.entries.get(trimmed_name + "/");
+        if (existing_entry)
+            return existing_entry;
         const empty_file = new BlobSlice(new Blob([]));
         const crc = crc32(new Uint8Array(0));
         const entry = new ZipEntry(empty_file, 0, 0, crc);
@@ -371,6 +389,7 @@ class ZipArchive {
             else {
                 const { data_location } = this.read_local(view, entry.local_position);
                 const { uncompressed_size, compressed_size, compression, flag, file_name, internal, external, crc, extra, comment } = entry;
+                archive.verify_path(file_name);
                 const blob_slice = new BlobSlice(blob, data_location, compressed_size);
                 const zip_entry = archive.set_internal(file_name, blob_slice, compression, uncompressed_size, crc);
                 zip_entry.bit_flag = flag;
