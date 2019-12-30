@@ -24,8 +24,8 @@ const inflated_entries: WeakMap < BlobSlice, Blob > = new WeakMap
 
 export class ZipEntry {
 	private readonly blob_slice: BlobSlice
-	private extra ? : Uint8Array
-	private comment ? : Uint8Array
+	extra ? : Uint8Array
+	comment ? : Uint8Array
 	
 	internal_file_attr: number = 0
 	external_file_attr: number = 0

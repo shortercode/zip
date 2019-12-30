@@ -60,8 +60,8 @@ type CD_Block = {
 	external: number,
 	local_position: number,
 	file_name: string,
-	field: Uint8Array,
-	comment: string,
+	extra: Uint8Array,
+	comment: Uint8Array,
 	size: number
 };
 
@@ -75,7 +75,7 @@ type LD_Block = {
 	compressed_size: number,
 	uncompressed_size: number,
 	file_name: string,
-	field: Uint8Array,
+	extra: Uint8Array,
 	data_location: number
 };
 
@@ -218,7 +218,9 @@ export class ZipArchive {
 					file_name,
 					internal,
 					external,
-					crc
+					crc,
+					extra,
+					comment
 				} = entry;
 
 				const blob_slice = new BlobSlice(blob, data_location, compressed_size);
@@ -227,6 +229,8 @@ export class ZipArchive {
 				zip_entry.bit_flag = flag;
 				zip_entry.internal_file_attr = internal;
 				zip_entry.external_file_attr = external;
+				zip_entry.extra = extra;
+				zip_entry.comment = comment;
 				zip_entry.modified = date_from_dos_time(entry.date, entry.time);
 				const current_time = Date.now();
 				const delta_time = current_time - task_start_time;
@@ -279,11 +283,11 @@ export class ZipArchive {
 		const crc = view.getUint32(position + 14, true);
 		const compressed_size = view.getUint32(position + 18, true);
 		const uncompressed_size = view.getUint32(position + 22, true);
-		const nameLength = view.getUint16(position + 26, true);
-		const fieldLength = view.getUint16(position + 28, true);
-		const file_name = decode_utf8_string(view.buffer, position + 30, nameLength);
-		const field = new Uint8Array(view.buffer, position + 30 + nameLength, fieldLength);
-		const data_location = position + 30 + nameLength + fieldLength;
+		const name_length = view.getUint16(position + 26, true);
+		const extra_length = view.getUint16(position + 28, true);
+		const file_name = decode_utf8_string(view.buffer, position + 30, name_length);
+		const extra = new Uint8Array(view.buffer, position + 30 + name_length, extra_length);
+		const data_location = position + 30 + name_length + extra_length;
 
 		// might be a 12 - 16 byte footer here, depending on the value of flag
 
@@ -297,7 +301,7 @@ export class ZipArchive {
 			compressed_size,
 			uncompressed_size,
 			file_name,
-			field,
+			extra,
 			data_location
 		};
 	}
@@ -340,17 +344,17 @@ export class ZipArchive {
 		const compressed_size = view.getUint32(position + 20, true);
 		const uncompressed_size = view.getUint32(position + 24, true);
 		const name_length = view.getUint16(position + 28, true);
-		const field_length = view.getUint16(position + 30, true);
+		const extra_length = view.getUint16(position + 30, true);
 		const comment_length = view.getUint16(position + 32, true);
 		const disk = view.getUint16(position + 34, true);
 		const internal = view.getUint16(position + 36, true);
 		const external = view.getUint32(position + 38, true);
 		const local_position = view.getUint32(position + 42, true);
 		const file_name = decode_utf8_string(view.buffer, position + 46, name_length);
-		const field = new Uint8Array(view.buffer, position + 46 + name_length, field_length);
-		const comment = decode_utf8_string(view.buffer, position + 46 + name_length + field_length, comment_length);
+		const extra = new Uint8Array(view.buffer, position + 46 + name_length, extra_length);
+		const comment = new Uint8Array(view.buffer, position + 46 + name_length + extra_length, comment_length);
 
-		const size = 46 + name_length + field_length + comment_length;
+		const size = 46 + name_length + extra_length + comment_length;
 
 		return {
 			version,
@@ -367,7 +371,7 @@ export class ZipArchive {
 			external,
 			local_position,
 			file_name,
-			field,
+			extra,
 			comment,
 			size
 		};
