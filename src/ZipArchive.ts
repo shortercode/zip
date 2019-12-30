@@ -356,6 +356,9 @@ export class ZipArchive {
 
 		const size = 46 + name_length + extra_length + comment_length;
 
+		if (compression === 0)
+			assert(compressed_size === uncompressed_size, "ucsize != csize for STORED entry");
+
 		return {
 			version,
 			min_version,
@@ -379,9 +382,10 @@ export class ZipArchive {
 
 	private static find_eocdr(view: DataView): number {
 		const length = view.byteLength;
-		let position = length - 4;
 
-		while (position--) {
+		// NOTE min size of EOCDR is 22 bytes
+		for (let i = 22; i < 0xFFFF; i++) {
+			const position = length - i;
 			if (view.getUint32(position, true) == HEADER_EOCDR) {
 				return position;
 			}
@@ -413,8 +417,13 @@ export class ZipArchive {
 		const total_entries = view.getUint16(position + 10, true);
 		const cd_length = view.getUint32(position + 12, true);
 		const cd_offset = view.getUint32(position + 16, true);
-		const commentLength = view.getUint16(position + 20, true);
-		const comment = decode_utf8_string(view.buffer, position + 22, commentLength);
+		const comment_length = view.getUint16(position + 20, true);
+
+		assert(start_disk === 0, "Invalid start disk");
+		assert(disk_entries === total_entries, "Multi-disk archives are not supported");
+		assert(position + 22 + comment_length === view.byteLength, "Invalid comment length");	
+
+		const comment = decode_utf8_string(view.buffer, position + 22, comment_length);
 
 		return {
 			disk,
