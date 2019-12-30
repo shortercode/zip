@@ -61,6 +61,40 @@ console.log(await archive.get("hello.txt").get_string());
 // expected output: "hello world"
 ```
 
+### Deleting an entry within an archive
+`ZipArchive.prototype.delete(file_name: string): boolean`
+
+The `delete()` method deletes a ZipEntry within an archive. If used on a folder this will delete the folder entry, but not the contents of the folder as the actual folder entry is optional. If an entry is deleted then this method will return true, otherwise it will return false.
+
+```javascript
+import { ZipArchive } from "./zip.js";
+
+const archive = new ZipArchive;
+await archive.set("hello.txt", "hello world");
+
+console.log(archive.has("hello.txt"));
+// expected output: true
+archive.delete("hello.txt");
+console.log(archive.has("hello.txt"));
+// expected output: false
+```
+
+### Create a folder
+`ZipArchive.prototype.set_folder(file_name: string): ZipEntry`
+
+The `set_folder()` method creates a new empty ZipEntry representing a folder and returns the ZipEntry instance. If a folder already exists no new entry will be created, and the existing one will be returned. If a file entry exists in the location this will throw an error. 
+
+Creating entries for folders is optional. Entries are relative to the root of the archive, hence filepaths can imply the existence of a folder.
+
+```javascript
+import { ZipArchive } from "./zip.js";
+
+const archive = new ZipArchive;
+archive.set_folder("folder");
+console.log(archive.has("folder"));
+// expected output: true
+```
+
 ### Compress an existing entry in an archive
 `ZipArchive.prototype.compress_entry(file_name: string): Promise<ZipEntry>`
 
