@@ -1,0 +1,30 @@
+html, body {
+    margin: 0;
+    height: 100%;
+}
+
+.drop-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+.drop-zone:before {
+    content: "";
+    display: block;
+    position: absolute;
+    z-index: -1;
+    background-color: rgb(240, 240, 240);
+    top: 8px;
+    bottom: 8px;
+    left: 8px;
+    right: 8px;
+    border-radius: 16px;
+    border: 2px dashed rgb(128, 128, 128);
+}
+
+.drop-zone input[type="file"] {
+    display: none;
+}
