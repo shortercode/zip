@@ -89,8 +89,8 @@ class DropZoneComponent extends Component {
             { 
                 className: "drop-zone",
                 onDrop: e => this.on_drop(e),
-                onDragover: e => this.on_drag_over(e),
-                onDragleave: e => this.on_drag_leave(e) 
+                onDragOver: e => this.on_drag_over(e),
+                onDragLeave: e => this.on_drag_leave(e) 
             },
             createElement(Fragment, {}, text),
             createElement(
