@@ -545,7 +545,7 @@ export class ZipArchive {
 
 	private verify_path(name: string) {
 		const slash_regex = /[\\|/]/g;
-		const part_regex = /^[\w@\-. ]+$/;
+		const part_regex = /^[^/\0]+$/;
 		const parts = name.split(slash_regex);
 
 		// NOTE disallows absolute paths and ".."/"." path components

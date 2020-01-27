@@ -4,9 +4,10 @@
         <input type="file">
         <!-- <script src="https://unpkg.com/wasm-flate@0.1.11-alpha/dist/bootstrap.js"></script> -->
         <!-- <script src="../dependencies/pako.js"></script> -->
-        <script type="module">
-            import { ZipArchive } from "../dist/zip_default.js";
-
+        <script src="../dist/zip_default.umd.js"></script>
+        <script>
+            // import { ZipArchive } from "../dist/zip_default.js";
+            const { ZipArchive } = window.zip;
             const file_picker = document.querySelector("input[type=file]");
             file_picker.addEventListener("change", async () => {
                 const file = file_picker.files[0];
