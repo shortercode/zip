@@ -559,7 +559,7 @@ class ZipArchive {
     }
     verify_path(name) {
         const slash_regex = /[\\|/]/g;
-        const part_regex = /^[\w@\-. ]+$/;
+        const part_regex = /^[^/\0]+$/;
         const parts = name.split(slash_regex);
         for (const part of parts) {
             assert(part_regex.test(part) || part === ".." || part === ".", `Invalid path "${name}"`);
