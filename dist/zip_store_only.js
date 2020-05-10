@@ -16,8 +16,9 @@ function decode_utf8_string(buffer, offset, length) {
 class AssertionError extends Error {
 }
 function assert(test, msg) {
-    if (test === false)
+    if (test === false) {
         throw new AssertionError(msg);
+    }
 }
 
 let compression_function;
@@ -74,6 +75,20 @@ class ZipEntry {
     get is_compressed() {
         return this.compression !== 0;
     }
+    clone() {
+        const copy = new ZipEntry(this.blob_slice, this.compression, this.uncompressed_size, this.crc);
+        copy.modified = new Date(this.modified.getTime());
+        if (this.comment) {
+            copy.comment = this.comment.slice(0);
+        }
+        if (this.extra) {
+            copy.extra = this.extra.slice(0);
+        }
+        copy.bit_flag = this.bit_flag;
+        copy.external_file_attr = this.external_file_attr;
+        copy.internal_file_attr = this.internal_file_attr;
+        return copy;
+    }
     get size() {
         return this.uncompressed_size;
     }
@@ -82,8 +97,9 @@ class ZipEntry {
     }
     async decompress() {
         const existing = inflated_entries.get(this.blob_slice);
-        if (existing)
+        if (existing) {
             return existing;
+        }
         else {
             const result = await decompress(this.blob_slice.get_blob());
             inflated_entries.set(this.blob_slice, result);
@@ -168,8 +184,9 @@ class ZipEntry {
         return this.blob_slice.get_blob();
     }
     async get_blob() {
-        if (this.compression === 8)
+        if (this.compression === 8) {
             return this.decompress();
+        }
         assert(this.compression === 0, "Incompatible compression type");
         return this.blob_slice.get_blob();
     }
@@ -229,7 +246,11 @@ const CRC_LOOKUP = new Uint32Array([
     0xB40BBE37, 0xC30C8EA1, 0x5A05DF1B, 0x2D02EF8D
 ]);
 function crc32(bytes, crc = 0) {
-    return (~bytes.reduce((crc, v) => CRC_LOOKUP[(crc ^ v) & 0xFF] ^ (crc >>> 8), ~crc)) >>> 0;
+    let result = ~crc;
+    for (const v of bytes) {
+        result = CRC_LOOKUP[(result ^ v) & 0xFF] ^ (result >>> 8);
+    }
+    return (~result) >>> 0;
 }
 
 class BlobSlice {
@@ -243,16 +264,34 @@ class BlobSlice {
         return this.end - this.start;
     }
     get_blob() {
-        if (this.is_whole)
+        if (this.is_whole) {
             return this.blob;
+        }
         return this.blob.slice(this.start, this.end);
     }
 }
 
 const MAX_TASK_TIME = 32;
 const INTER_TASK_PAUSE = 16;
-function NOT_IMPLEMENTED(name) {
-    throw new Error(`${name} is not implemented`);
+const support_performance = typeof performance === "object";
+let last_system_time = 0;
+function get_increasing_time() {
+    if (support_performance) {
+        return performance.now();
+    }
+    else {
+        const system_time = Date.now();
+        if (last_system_time <= system_time) {
+            last_system_time += 0.1;
+        }
+        else {
+            last_system_time = system_time;
+        }
+        return last_system_time;
+    }
+}
+async function pause(duration) {
+    return new Promise(resolve => setTimeout(resolve, duration));
 }
 class ZipArchive {
     constructor() {
@@ -271,23 +310,27 @@ class ZipArchive {
         return this.entries.has(trimmed_name + "/");
     }
     get(file_name) {
-        this.verify_path(file_name);
-        return this.entries.get(this.normalise_file_name(file_name));
+        const norm_name = this.normalise_file_name(file_name);
+        const trimmed_name = norm_name.endsWith("/") ? norm_name.slice(0, -1) : norm_name;
+        this.verify_path(trimmed_name);
+        return this.entries.get(trimmed_name) || this.entries.get(trimmed_name + "/");
     }
     delete(file_name) {
         const norm_name = this.normalise_file_name(file_name);
         const trimmed_name = norm_name.endsWith("/") ? norm_name.slice(0, -1) : norm_name;
         this.verify_path(trimmed_name);
-        if (this.entries.has(trimmed_name + "/"))
+        if (this.entries.has(trimmed_name + "/")) {
             return this.entries.delete(trimmed_name + "/");
-        else
+        }
+        else {
             return this.entries.delete(trimmed_name);
+        }
     }
     async set(file_name, file) {
         this.verify_path(file_name);
         const norm_name = this.normalise_file_name(file_name);
-        if (this.entries.has(norm_name + "/"))
-            throw new Error(`Unable to create ZipEntry; a folder exists at ${norm_name}`);
+        assert(!norm_name.endsWith("/"), `Unable to create ZipEntry; target location "${file_name}" has a directory path.`);
+        assert(!this.entries.has(norm_name + "/"), `Unable to create ZipEntry; a folder exists at "${file_name}".`);
         file = file instanceof Blob ? file : new Blob([file]);
         const crc = await this.calculate_crc(file);
         return this.set_internal(file_name, new BlobSlice(file), 0, file.size, crc);
@@ -296,11 +339,13 @@ class ZipArchive {
         const norm_name = this.normalise_file_name(file_name);
         const trimmed_name = norm_name.endsWith("/") ? norm_name.slice(0, -1) : norm_name;
         this.verify_path(trimmed_name);
-        if (this.entries.has(trimmed_name))
-            throw new Error(`Unable to create folder; entry already exists at ${trimmed_name}`);
+        if (this.entries.has(trimmed_name)) {
+            throw new Error(`Unable to create ZipEntry; entry already exists at "${trimmed_name}".`);
+        }
         const existing_entry = this.entries.get(trimmed_name + "/");
-        if (existing_entry)
+        if (existing_entry) {
             return existing_entry;
+        }
         const empty_file = new BlobSlice(new Blob([]));
         const crc = crc32(new Uint8Array(0));
         const entry = new ZipEntry(empty_file, 0, 0, crc);
@@ -308,19 +353,56 @@ class ZipArchive {
         return entry;
     }
     copy(from, to) {
-        this.verify_path(from);
-        this.verify_path(to);
-        NOT_IMPLEMENTED("ZipArchive.copy");
+        const is_folder = this.is_folder(from);
+        const source = this.get(from);
+        assert(!!source, `Unable to copy ZipEntry; "${from}" doesn't exist in the archive.`);
+        const copy = source.clone();
+        if (is_folder) {
+            const norm_name = this.normalise_file_name(to);
+            const trimmed_name = norm_name.endsWith("/") ? norm_name.slice(0, -1) : norm_name;
+            this.verify_path(trimmed_name);
+            assert(this.entries.has(trimmed_name) === false, `Unable to copy ZipEntry; entry already exists at "${trimmed_name}".`);
+            assert(this.entries.has(trimmed_name + "/") === false, `Unable to copy ZipEntry; entry already exists at "${trimmed_name}/".`);
+            this.entries.set(trimmed_name + "/", copy);
+        }
+        else {
+            const norm_name = this.normalise_file_name(to);
+            this.verify_path(norm_name);
+            assert(!norm_name.endsWith("/"), `Unable to copy ZipEntry; target location "${to}" has a directory path.`);
+            assert(!this.entries.has(norm_name + "/"), `Unable to copy ZipEntry; a folder exists at "${norm_name}/".`);
+            assert(!this.entries.has(norm_name), `Unable to copy ZipEntry; a entry already exists at "${norm_name}".`);
+            this.entries.set(norm_name, copy);
+        }
+        return copy;
     }
     move(from, to) {
-        this.verify_path(from);
-        this.verify_path(to);
-        NOT_IMPLEMENTED("ZipArchive.move");
+        const is_folder = this.is_folder(from);
+        const source = this.get(from);
+        assert(!!source, `Unable to move ZipEntry; "${from}" doesn't exist in the archive.`);
+        if (is_folder) {
+            const norm_name = this.normalise_file_name(to);
+            const trimmed_name = norm_name.endsWith("/") ? norm_name.slice(0, -1) : norm_name;
+            this.verify_path(trimmed_name);
+            assert(this.entries.has(trimmed_name) === false, `Unable to move ZipEntry; entry already exists at "${trimmed_name}".`);
+            assert(this.entries.has(trimmed_name + "/") === false, `Unable to move ZipEntry; entry already exists at "${trimmed_name}/".`);
+            this.entries.set(trimmed_name + "/", source);
+            this.delete(from);
+        }
+        else {
+            const source = this.get(from);
+            assert(!!source, `Unable to move ZipEntry; "${from}" doesn't exist in the archive.`);
+            const norm_name = this.normalise_file_name(to);
+            this.verify_path(norm_name);
+            assert(!norm_name.endsWith("/"), `Unable to move ZipEntry; target location "${to}" has a directory path.`);
+            assert(!this.entries.has(norm_name + "/"), `Unable to move ZipEntry; a folder exists at "${norm_name}/".`);
+            assert(!this.entries.has(norm_name), `Unable to move ZipEntry; an entry exists at "${norm_name}".`);
+            this.entries.set(norm_name, source);
+        }
+        return source;
     }
     async compress_entry(file_name) {
         const entry = this.get(file_name);
-        if (!entry)
-            throw new Error(`Entry ${file_name} does not exist`);
+        assert(!!entry, `Unable to compress ZipEntry; entry "${file_name}" does not exist.`);
         if (!entry.is_compressed) {
             const blob = await entry.get_blob();
             const original_size = blob.size;
@@ -331,7 +413,7 @@ class ZipArchive {
     }
     set_comment(str) {
         const buffer = encode_utf8_string(str);
-        assert(buffer.length < 0xFFFF, "Comment exceeds maximum size");
+        assert(buffer.byteLength < 0xFFFF, `Unable to set commment; comment is ${buffer.byteLength} bytes which exceeds maximum size of ${0xFFFE}.`);
         this.comment = buffer;
     }
     to_blob() {
@@ -363,7 +445,8 @@ class ZipArchive {
         return new Blob(parts);
     }
     files() {
-        return this.entries.entries();
+        const entries = Array.from(this.entries.entries());
+        return entries.values();
     }
     static async from_blob(blob) {
         const archive = new ZipArchive;
@@ -374,10 +457,7 @@ class ZipArchive {
         let position = 0;
         const offset = eocdr.cd_offset;
         const length = eocdr.cd_length;
-        let task_start_time = Date.now();
-        async function pause(duration) {
-            return new Promise(resolve => setTimeout(resolve, duration));
-        }
+        let task_start_time = get_increasing_time();
         while (position < length) {
             const signature = view.getUint32(position + offset, true);
             assert(signature === HEADER_CD, "Expected CD header");
@@ -398,11 +478,11 @@ class ZipArchive {
                 zip_entry.extra = extra;
                 zip_entry.comment = comment;
                 zip_entry.modified = date_from_dos_time(entry.date, entry.time);
-                const current_time = Date.now();
+                const current_time = get_increasing_time();
                 const delta_time = current_time - task_start_time;
                 if (delta_time > MAX_TASK_TIME) {
                     await pause(INTER_TASK_PAUSE);
-                    task_start_time = Date.now();
+                    task_start_time = get_increasing_time();
                 }
             }
         }
@@ -467,8 +547,9 @@ class ZipArchive {
         const extra = new Uint8Array(view.buffer, position + 46 + name_length, extra_length);
         const comment = new Uint8Array(view.buffer, position + 46 + name_length + extra_length, comment_length);
         const size = 46 + name_length + extra_length + comment_length;
-        if (compression === 0)
+        if (compression === 0) {
             assert(compressed_size === uncompressed_size, "ucsize != csize for STORED entry");
+        }
         return {
             version,
             min_version,
