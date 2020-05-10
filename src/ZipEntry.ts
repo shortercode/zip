@@ -32,6 +32,25 @@ export class ZipEntry {
 		this.uncompressed_size = size;
 		this.crc = crc;
 	}
+
+	clone (): ZipEntry {
+		const copy = new ZipEntry(this.blob_slice, this.compression, this.uncompressed_size, this.crc);
+
+		copy.modified = new Date(this.modified.getTime());
+
+		if (this.comment) {
+			copy.comment = this.comment.slice(0);
+		}
+		if (this.extra) {
+			copy.extra = this.extra.slice(0);
+		}
+
+		copy.bit_flag = this.bit_flag;
+		copy.external_file_attr = this.external_file_attr;
+		copy.internal_file_attr = this.internal_file_attr;
+
+		return copy;
+	}
 	
 	// alias for uncompressed_size
 	get size(): number {
