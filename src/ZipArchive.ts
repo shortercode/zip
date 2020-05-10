@@ -207,8 +207,9 @@ export class ZipArchive {
 		return new Blob(parts);
 	}
 	
-	files(): Iterator <[string, ZipEntry]> {
-		return this.entries.entries();
+	files(): Iterator<[string, ZipEntry]> {
+		const entries = Array.from(this.entries.entries());
+		return entries.values();
 	}
 	
 	static async from_blob(blob: Blob): Promise<ZipArchive> {
