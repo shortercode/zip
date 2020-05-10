@@ -45,10 +45,9 @@ const CRC_LOOKUP = new Uint32Array([
 ]);
 
 export function crc32(bytes: Uint8Array, crc = 0): number {
-	return (
-		~bytes.reduce(
-			(crc, v) => CRC_LOOKUP[(crc ^ v) & 0xFF] ^ (crc >>> 8),
-			~crc
-		)
-	) >>> 0;
+	let result = ~crc;
+	for (const v of bytes) {
+		result = CRC_LOOKUP[(result ^ v) & 0xFF] ^ (result >>> 8)
+	}
+	return (~result) >>> 0;
 }
