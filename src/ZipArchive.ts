@@ -14,6 +14,30 @@ function NOT_IMPLEMENTED(name: string) {
 	throw new Error(`${name} is not implemented`);
 }
 
+const support_performance = typeof performance === "object";
+let last_system_time = 0;
+
+function get_increasing_time () {
+	if (support_performance) {
+		return performance.now();
+	}
+	else {
+		const system_time = Date.now();
+		
+		if (last_system_time <= system_time) {
+			last_system_time += 0.1;
+		}
+		else {
+			last_system_time = system_time;
+		}
+		return last_system_time;
+	}
+}
+
+async function pause (duration: number) {
+	return new Promise(resolve => setTimeout(resolve, duration))
+}
+
 type EOCDR_Block = {
 	disk: number,
 	start_disk: number,
@@ -223,11 +247,7 @@ export class ZipArchive {
 		let position = 0;
 		const offset = eocdr.cd_offset
 		const length = eocdr.cd_length;
-		let task_start_time = Date.now();
-		
-		async function pause (duration: number) {
-			return new Promise(resolve => setTimeout(resolve, duration))
-		}
+		let task_start_time = get_increasing_time();
 		
 		while (position < length) {
 			const signature = view.getUint32(position + offset, true);
@@ -270,12 +290,12 @@ export class ZipArchive {
 				zip_entry.extra = extra;
 				zip_entry.comment = comment;
 				zip_entry.modified = date_from_dos_time(entry.date, entry.time);
-				const current_time = Date.now();
+				const current_time = get_increasing_time();
 				const delta_time = current_time - task_start_time;
 				
 				if (delta_time > MAX_TASK_TIME) {
 					await pause(INTER_TASK_PAUSE);
-					task_start_time = Date.now();
+					task_start_time = get_increasing_time();
 				}
 			}
 			
