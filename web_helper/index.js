@@ -1,19 +1,19 @@
 import { ZipArchive } from "./zip.js";
 
 function blob_stream (input) {
-    return input.stream();
+	return input.stream();
 }
 
 async function compress (input){
-    const ds = new CompressionStream('deflate-raw');
-    const compressedStream = blob_stream(input).pipeThrough(ds);
-    return await new Response(compressedStream).blob();
+	const ds = new CompressionStream('deflate-raw');
+	const compressedStream = blob_stream(input).pipeThrough(ds);
+	return await new Response(compressedStream).blob();
 }
 
 async function decompress (input){
-    const ds = new DecompressionStream('deflate-raw');
-    const decompressedStream = blob_stream(input).pipeThrough(ds);
-    return await new Response(decompressedStream).blob();
+	const ds = new DecompressionStream('deflate-raw');
+	const decompressedStream = blob_stream(input).pipeThrough(ds);
+	return await new Response(decompressedStream).blob();
 }
 
 ZipArchive.set_compression_function(compress);
