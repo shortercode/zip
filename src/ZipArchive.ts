@@ -10,7 +10,7 @@ import { BlobSlice } from "./BlobSlice";
 const MAX_TASK_TIME = 32;
 const INTER_TASK_PAUSE = 16;
 
-function NOT_IMPLEMENTED(name: string) {
+function NOT_IMPLEMENTED(name: string): never {
 	throw new Error(`${name} is not implemented`);
 }
 
@@ -108,6 +108,15 @@ export class ZipArchive {
 		this.verify_path(file_name);
 		return this.entries.get(this.normalise_file_name(file_name));
 	}
+
+	get_folder(file_name: string): ZipEntry | undefined {
+		const norm_name = this.normalise_file_name(file_name);
+		const trimmed_name = norm_name.endsWith("/") ? norm_name.slice(0, -1) : norm_name;
+		
+		this.verify_path(trimmed_name);
+		
+		return this.entries.get(trimmed_name + "/");
+	}
 	
 	delete(file_name: string): boolean {
 		const norm_name = this.normalise_file_name(file_name);
@@ -128,9 +137,8 @@ export class ZipArchive {
 		
 		const norm_name = this.normalise_file_name(file_name);
 		
-		if (this.entries.has(norm_name + "/")) {
-			throw new Error(`Unable to create ZipEntry; a folder exists at ${norm_name}`);
-		}
+		assert(!norm_name.endsWith("/"), `Unable to create ZipEntry; target location "${file_name}" has a directory path.`);
+		assert(!this.entries.has(norm_name + "/"), `Unable to create ZipEntry; a folder exists at "${file_name}".`);
 		
 		file = file instanceof Blob ? file : new Blob([file]);
 		const crc = await this.calculate_crc(file);
@@ -144,7 +152,7 @@ export class ZipArchive {
 		this.verify_path(trimmed_name);
 		
 		if (this.entries.has(trimmed_name)) {
-			throw new Error(`Unable to create folder; entry already exists at ${trimmed_name}`);
+			throw new Error(`Unable to create ZipEntry; entry already exists at "${trimmed_name}".`);
 		}
 		
 		const existing_entry = this.entries.get(trimmed_name + "/")
@@ -165,30 +173,62 @@ export class ZipArchive {
 		NOT_IMPLEMENTED("ZipArchive.copy");
 	}
 	
-	move(from: string, to: string): void {
-		this.verify_path(from);
-		this.verify_path(to);
-		NOT_IMPLEMENTED("ZipArchive.move");
+	move(from: string, to: string): ZipEntry {
+		const is_folder = this.is_folder(from);
+
+		if (is_folder) {
+			const source = this.get_folder(from);
+
+			assert(!!source, `Unable to move ZipEntry; "${from}" doesn't exist in the archive.`);
+
+			const norm_name = this.normalise_file_name(to);
+			const trimmed_name = norm_name.endsWith("/") ? norm_name.slice(0, -1) : norm_name;
+			
+			this.verify_path(trimmed_name);
+
+			assert(this.entries.has(trimmed_name) === false, `Unable to move ZipEntry; entry already exists at "${trimmed_name}".`)
+			assert(this.entries.has(trimmed_name + "/") === false, `Unable to move ZipEntry; entry already exists at "${trimmed_name}/".`)
+			
+			this.entries.set(trimmed_name + "/", source!);
+			this.delete(from);
+
+			return source!;
+		}
+		else {
+			const source = this.get(from);
+
+			assert(!!source, `Unable to move ZipEntry; "${from}" doesn't exist in the archive.`);
+			
+			const norm_name = this.normalise_file_name(to);
+
+			this.verify_path(norm_name);
+
+			assert(!norm_name.endsWith("/"), `Unable to move ZipEntry; target location "${to}" has a directory path.`);
+			assert(!this.entries.has(norm_name + "/"), `Unable to move ZipEntry; a folder exists at "${norm_name}".`);
+
+			this.entries.set(norm_name, source!);
+			this.delete(from);
+
+			return source!;
+		}
 	}
 	
 	async compress_entry(file_name: string): Promise<ZipEntry> {
 		const entry = this.get(file_name);
-		if (!entry) {
-			throw new Error(`Entry ${file_name} does not exist`);
-		}
-		if (!entry.is_compressed) {
-			const blob = await entry.get_blob();
+		assert(!!entry, `Unable to compress ZipEntry; entry "${file_name}" does not exist.`);
+		if (!entry!.is_compressed) {
+			const blob = await entry!.get_blob();
 			const original_size = blob.size;
 			const deflated_blob = await this.compress_blob(blob);
 			// NOTE crc is generated from the uncompressed buffer
-			return this.set_internal(file_name, new BlobSlice(deflated_blob), 8, original_size, entry.crc);
+			return this.set_internal(file_name, new BlobSlice(deflated_blob), 8, original_size, entry!.crc);
 		}
-		return entry;
+		return entry!;
 	}
 	
 	set_comment(str: string): void {
 		const buffer = encode_utf8_string(str);
-		assert(buffer.length < 0xFFFF, "Comment exceeds maximum size");
+		assert(buffer.byteLength < 0xFFFF, `Unable to set commment; comment is ${buffer.byteLength} bytes which exceeds maximum size of ${0xFFFE}.`);
 		this.comment = buffer;
 	}
 	
