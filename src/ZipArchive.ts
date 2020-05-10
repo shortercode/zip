@@ -167,10 +167,44 @@ export class ZipArchive {
 		return entry;
 	}
 	
-	copy(from: string, to: string): void {
-		this.verify_path(from);
-		this.verify_path(to);
-		NOT_IMPLEMENTED("ZipArchive.copy");
+	copy(from: string, to: string): ZipEntry {
+		const is_folder = this.is_folder(from);
+
+		if (is_folder) {
+			const source = this.get_folder(from);
+
+			assert(!!source, `Unable to copy ZipEntry; "${from}" doesn't exist in the archive.`);
+
+			const norm_name = this.normalise_file_name(to);
+			const trimmed_name = norm_name.endsWith("/") ? norm_name.slice(0, -1) : norm_name;
+			
+			this.verify_path(trimmed_name);
+
+			assert(this.entries.has(trimmed_name) === false, `Unable to copy ZipEntry; entry already exists at "${trimmed_name}".`)
+			assert(this.entries.has(trimmed_name + "/") === false, `Unable to copy ZipEntry; entry already exists at "${trimmed_name}/".`)
+			
+			const copy = source!.clone();
+			this.entries.set(trimmed_name + "/", copy);
+
+			return copy;
+		}
+		else {
+			const source = this.get(from);
+
+			assert(!!source, `Unable to copy ZipEntry; "${from}" doesn't exist in the archive.`);
+			
+			const norm_name = this.normalise_file_name(to);
+
+			this.verify_path(norm_name);
+
+			assert(!norm_name.endsWith("/"), `Unable to copy ZipEntry; target location "${to}" has a directory path.`);
+			assert(!this.entries.has(norm_name + "/"), `Unable to copy ZipEntry; a folder exists at "${norm_name}".`);
+
+			const copy = source!.clone();
+			this.entries.set(norm_name, copy);
+
+			return copy;
+		}
 	}
 	
 	move(from: string, to: string): ZipEntry {
