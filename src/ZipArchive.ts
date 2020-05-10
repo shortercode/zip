@@ -10,10 +10,6 @@ import { BlobSlice } from "./BlobSlice";
 const MAX_TASK_TIME = 32;
 const INTER_TASK_PAUSE = 16;
 
-function NOT_IMPLEMENTED(name: string): never {
-	throw new Error(`${name} is not implemented`);
-}
-
 const support_performance = typeof performance === "object";
 let last_system_time = 0;
 
@@ -105,17 +101,12 @@ export class ZipArchive {
 	}
 	
 	get(file_name: string): ZipEntry | undefined {
-		this.verify_path(file_name);
-		return this.entries.get(this.normalise_file_name(file_name));
-	}
-
-	get_folder(file_name: string): ZipEntry | undefined {
 		const norm_name = this.normalise_file_name(file_name);
 		const trimmed_name = norm_name.endsWith("/") ? norm_name.slice(0, -1) : norm_name;
-		
+
 		this.verify_path(trimmed_name);
 		
-		return this.entries.get(trimmed_name + "/");
+		return this.entries.get(trimmed_name) || this.entries.get(trimmed_name + "/");
 	}
 	
 	delete(file_name: string): boolean {
@@ -169,12 +160,13 @@ export class ZipArchive {
 	
 	copy(from: string, to: string): ZipEntry {
 		const is_folder = this.is_folder(from);
+		const source = this.get(from);
+
+		assert(!!source, `Unable to copy ZipEntry; "${from}" doesn't exist in the archive.`);
+
+		const copy = source!.clone();
 
 		if (is_folder) {
-			const source = this.get_folder(from);
-
-			assert(!!source, `Unable to copy ZipEntry; "${from}" doesn't exist in the archive.`);
-
 			const norm_name = this.normalise_file_name(to);
 			const trimmed_name = norm_name.endsWith("/") ? norm_name.slice(0, -1) : norm_name;
 			
@@ -183,38 +175,30 @@ export class ZipArchive {
 			assert(this.entries.has(trimmed_name) === false, `Unable to copy ZipEntry; entry already exists at "${trimmed_name}".`)
 			assert(this.entries.has(trimmed_name + "/") === false, `Unable to copy ZipEntry; entry already exists at "${trimmed_name}/".`)
 			
-			const copy = source!.clone();
 			this.entries.set(trimmed_name + "/", copy);
-
-			return copy;
 		}
 		else {
-			const source = this.get(from);
-
-			assert(!!source, `Unable to copy ZipEntry; "${from}" doesn't exist in the archive.`);
-			
 			const norm_name = this.normalise_file_name(to);
 
 			this.verify_path(norm_name);
 
 			assert(!norm_name.endsWith("/"), `Unable to copy ZipEntry; target location "${to}" has a directory path.`);
-			assert(!this.entries.has(norm_name + "/"), `Unable to copy ZipEntry; a folder exists at "${norm_name}".`);
+			assert(!this.entries.has(norm_name + "/"), `Unable to copy ZipEntry; a folder exists at "${norm_name}/".`);
+			assert(!this.entries.has(norm_name), `Unable to copy ZipEntry; a entry already exists at "${norm_name}".`);
 
-			const copy = source!.clone();
 			this.entries.set(norm_name, copy);
-
-			return copy;
 		}
+
+		return copy;
 	}
 	
 	move(from: string, to: string): ZipEntry {
 		const is_folder = this.is_folder(from);
+		const source = this.get(from);
+
+		assert(!!source, `Unable to move ZipEntry; "${from}" doesn't exist in the archive.`);
 
 		if (is_folder) {
-			const source = this.get_folder(from);
-
-			assert(!!source, `Unable to move ZipEntry; "${from}" doesn't exist in the archive.`);
-
 			const norm_name = this.normalise_file_name(to);
 			const trimmed_name = norm_name.endsWith("/") ? norm_name.slice(0, -1) : norm_name;
 			
@@ -225,8 +209,6 @@ export class ZipArchive {
 			
 			this.entries.set(trimmed_name + "/", source!);
 			this.delete(from);
-
-			return source!;
 		}
 		else {
 			const source = this.get(from);
@@ -238,13 +220,13 @@ export class ZipArchive {
 			this.verify_path(norm_name);
 
 			assert(!norm_name.endsWith("/"), `Unable to move ZipEntry; target location "${to}" has a directory path.`);
-			assert(!this.entries.has(norm_name + "/"), `Unable to move ZipEntry; a folder exists at "${norm_name}".`);
+			assert(!this.entries.has(norm_name + "/"), `Unable to move ZipEntry; a folder exists at "${norm_name}/".`);
+			assert(!this.entries.has(norm_name), `Unable to move ZipEntry; an entry exists at "${norm_name}".`);
 
 			this.entries.set(norm_name, source!);
-			this.delete(from);
-
-			return source!;
 		}
+
+		return source!;
 	}
 	
 	async compress_entry(file_name: string): Promise<ZipEntry> {
