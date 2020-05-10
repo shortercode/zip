@@ -209,8 +209,8 @@ export class ZipEntry {
 	get_backing_object(): Blob {
 		return this.blob_slice.get_blob();
 	}
-	
-	async get_blob(): Promise < Blob > {
+
+	async get_blob(): Promise<Blob> {
 		if (this.compression === 8) {
 			return this.decompress();
 		}
