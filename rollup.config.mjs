@@ -8,12 +8,12 @@ function build_revision_plugin () {
   return {
     name: 'build-revision',
     buildEnd () {
-      if (process.env.BUILD_NUMBER) {
-        return fs.promises.writeFile('./dist/package.json', JSON.stringify({
-          ...pkg,
-          version: `${pkg.version}.${process.env.BUILD_NUMBER}`,
-        }));
-      }
+      const version = `${pkg.version}.${process.env.BUILD_NUMBER || 0}`;
+      console.log({ version });
+      return fs.promises.writeFile('./dist/package.json', JSON.stringify({
+        ...pkg,
+        version,
+      }, null, 2));
     }
   };
 }
