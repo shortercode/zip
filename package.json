@@ -1,0 +1,27 @@
+{
+  "name": "@shortercode/WebZip",
+  "version": "0.1.0",
+  "description": "A modern TypeScript library for creating, reading and editing ZIP archives in a client side environment.",
+  "main": "cjs/index.js",
+  "module": "mjs/index.mjs",
+  "types": "mjs/index.d.ts",
+  "scripts": {
+    "test": "jest --verbose --coverage",
+    "typecheck": "tsc --noEmit --watch",
+    "build": "rollup -c && cp ./package.json ./dist/package.json && cp ./README.md ./dist/README.md",
+    "lint": "eslint src/*"
+  },
+  "author": "Iain Shorter <iainshorter@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@typescript-eslint/eslint-plugin": "^5.59.0",
+    "@typescript-eslint/parser": "^5.59.0",
+    "eslint": "^8.38.0",
+    "rollup": "^3.20.5",
+    "rollup-plugin-typescript2": "^0.34.1",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.0.4"
+  },
+  "dependencies": {}
+}
