@@ -1,5 +1,5 @@
 {
-  "name": "@shortercode/WebZip",
+  "name": "@shortercode/webzip",
   "version": "0.1.0",
   "description": "A modern TypeScript library for creating, reading and editing ZIP archives in a client side environment.",
   "main": "cjs/index.js",
