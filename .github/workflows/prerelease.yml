@@ -20,4 +20,5 @@ jobs:
       - run: npm run build
       - run: npm publish --access public ./dist --tag next
         env:
+          BUILD_NUMBER: ${{github.run_number}}
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}

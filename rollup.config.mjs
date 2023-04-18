@@ -1,11 +1,30 @@
 
 import typescript from 'rollup-plugin-typescript2';
+import fs from 'fs';
+import pkg from './package.json' assert { type: "json" };
+
+
+function build_revision_plugin () {
+  return {
+    name: 'build-revision',
+    buildEnd () {
+      if (process.env.BUILD_NUMBER) {
+        return fs.promises.writeFile('./dist/package.json', JSON.stringify({
+          ...pkg,
+          version: `${pkg.version}.${process.env.BUILD_NUMBER}`,
+        }));
+      }
+    }
+  };
+}
+
 
 export default [
   {
     input: 'src/index.ts',
     plugins: [
-      typescript()
+      typescript(),
+      build_revision_plugin(),
     ],
     output: [
       {
@@ -14,22 +33,6 @@ export default [
       },
       {
         file: `dist/index.mjs`,
-        format: 'esm'
-      }
-    ]
-  },
-  {
-    input: 'src/ZipArchive.ts',
-    plugins: [
-      typescript()
-    ],
-    output: [
-      {
-        file: `dist/zip_store_only.js`,
-        format: 'cjs'
-      },
-      {
-        file: `dist/zip_store_only.mjs`,
         format: 'esm'
       }
     ]
