@@ -2,11 +2,11 @@
 A modern TypeScript library for creating, reading and editing ZIP archives in a client side environment. 
 
 ## Installing
-The latest builds can be found in the "dist" folder. 2 versions are available: "zip_default.js" which includes support for compression/decompression, and "zip_store_only.js" which can only read/write uncompressed files within a zip archive.
+The package is available on npm as `@shortercode/webzip`
 
-The code required for compression is quite substantial, hence why an alternative version is available without it.
-
-A version with typings will be published to NPM soon.
+```sh
+npm i @shortercode/webzip
+```
 
 ## Usage
 
@@ -18,7 +18,7 @@ The library is based on 2 classes ZipArchive and ZipEntry. ZipArchive is the pri
 The `has()` method returns a boolean indicating whether a ZipEntry with the specified file name exists or not.
 
 ```javascript
-import { ZipArchive } from "./zip";
+import { ZipArchive } from "@shortercode/webzip";
 
 const archive = new ZipArchive;
 await archive.set("hello.txt", "hello world");
@@ -35,7 +35,7 @@ console.log(archive.has("avatar.png"));
 The `get()` method returns a ZipEntry if one with a matching file name is present, otherwise it will return undefined.
 
 ```javascript
-import { ZipArchive } from "./zip";
+import { ZipArchive } from "@shortercode/webzip";
 
 const archive = new ZipArchive;
 await archive.set("hello.txt", "hello world");
@@ -52,7 +52,7 @@ console.log(archive.get("avatar.png"));
 The `set()` method adds or replaces a ZipEntry with a new entry created from a specific file name and contents. It is asyncronous, and returns a Promise that resolves to the new ZipEntry object.
 
 ```javascript
-import { ZipArchive } from "./zip";
+import { ZipArchive } from "@shortercode/webzip";
 
 const archive = new ZipArchive;
 await archive.set("hello.txt", "hello world");
@@ -67,7 +67,7 @@ console.log(await archive.get("hello.txt").get_string());
 The `delete()` method deletes a ZipEntry within an archive. If used on a folder this will delete the folder entry, but not the contents of the folder as the actual folder entry is *optional*. If an entry is deleted then this method will return true, otherwise it will return false.
 
 ```javascript
-import { ZipArchive } from "./zip";
+import { ZipArchive } from "@shortercode/webzip";
 
 const archive = new ZipArchive;
 await archive.set("hello.txt", "hello world");
@@ -97,7 +97,7 @@ The `set_folder()` method creates a new empty ZipEntry representing a folder and
 Creating entries for folders is optional. Entries are relative to the root of the archive, hence filepaths can imply the existence of a folder.
 
 ```javascript
-import { ZipArchive } from "./zip";
+import { ZipArchive } from "@shortercode/webzip";
 
 const archive = new ZipArchive;
 archive.set_folder("folder");
@@ -111,7 +111,7 @@ console.log(archive.has("folder"));
 The `compress_entry()` method replaces an existing ZipEntry with a promise that resolves to a new ZipEntry containing the contents of the old entry compressed using the deflate algorithm.
 
 ```javascript
-import { ZipArchive } from "./zip";
+import { ZipArchive } from "@shortercode/webzip";
 
 const archive = new ZipArchive;
 await archive.set("hello.txt", "hello world");
@@ -126,7 +126,7 @@ await archive.compress_entry("hello.txt");
 The `to_blob()` method serializes the ZipArchive in the Zip format and returns the result as a blob.
 
 ```javascript
-import { ZipArchive } from "./zip";
+import { ZipArchive } from "@shortercode/webzip";
 
 const archive = new ZipArchive;
 await archive.set("hello.txt", "hello world");
@@ -141,7 +141,7 @@ const blob = archive.to_blob();
 The `files()` method returns a new iterator object that contains `[file_name, entry]` pairs for each ZipEntry in the archive in insertion order. 
 
 ```javascript
-import { ZipArchive } from "./zip";
+import { ZipArchive } from "@shortercode/webzip";
 
 const archive = new ZipArchive;
 await archive.set("hello.txt", "hello world");
@@ -161,7 +161,7 @@ console.log(iterator.next().value);
 The `from_blob()` method returns a new promise that resolves to a ZipArchive created from a Zip file passed in as a blob.
 
 ```javascript
-import { ZipArchive } from "./zip";
+import { ZipArchive } from "@shortercode/webzip";
 
 const input_element = document.querySelector("input[type=file]");
 
@@ -201,7 +201,7 @@ The last modified date of the entry, as a JS Date object. This value is mutable,
 The internal/external file attributes flags for the entry. These values are mutable, and preserved when reading/writing.
 
 ```javascript
-import { ZipArchive } from "./zip";
+import { ZipArchive } from "@shortercode/webzip";
 
 const archive = new ZipArchive;
 await archive.set("hello.txt", "hello world");
