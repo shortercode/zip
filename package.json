@@ -2,9 +2,9 @@
   "name": "@shortercode/webzip",
   "version": "1.1.0",
   "description": "A modern TypeScript library for creating, reading and editing ZIP archives in a client side environment.",
-  "main": "cjs/index.js",
-  "module": "mjs/index.mjs",
-  "types": "mjs/index.d.ts",
+  "main": "index.js",
+  "module": "index.mjs",
+  "types": "index.d.ts",
   "scripts": {
     "test": "jest --verbose --coverage",
     "typecheck": "tsc --noEmit --watch",
