@@ -109,9 +109,9 @@ export class ZipEntry {
 		// NOTE set CRC, CSIZE & UCSIZE to 0 if the 3rd bit of the bit flag is set
 		// as the information is included in the data descriptor instead
 		if (!(this.bit_flag & 0b1000)) {
-			view.setUint32(16, this.crc, true);
-			view.setUint32(20, this.compressed_size, true);
-			view.setUint32(24, this.uncompressed_size, true);
+			view.setUint32(14, this.crc, true);
+			view.setUint32(18, this.compressed_size, true);
+			view.setUint32(22, this.uncompressed_size, true);
 		}
 		view.setUint16(26, encoded_filename.length, true);
 		view.setUint16(28, M, true);
