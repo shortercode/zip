@@ -8,7 +8,8 @@ function build_revision_plugin () {
   return {
     name: 'build-revision',
     buildEnd () {
-      const version = `${pkg.version}-${process.env.BUILD_NUMBER || 0}`;
+      const version = process.env.BUILD_NUMBER ? `${pkg.version}-${process.env.BUILD_NUMBER}` : pkg.version
+
       console.log({ version });
       return fs.promises.writeFile('./dist/package.json', JSON.stringify({
         ...pkg,

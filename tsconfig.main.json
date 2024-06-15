@@ -1,0 +1,24 @@
+{
+	"compilerOptions": {
+		"allowJs": true,
+		"moduleResolution": "node",
+		"outDir": "./dist",
+		"lib": ["ESNext", "DOM"],
+		"removeComments": true,
+		"target": "es2022",
+		"strict": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noImplicitReturns": true,
+		"noFallthroughCasesInSwitch": true,
+		"forceConsistentCasingInFileNames": true,
+		"esModuleInterop": true,
+		"verbatimModuleSyntax": true,
+	},
+	"include": [
+		"./src/common/"
+	],
+	"exclude": [
+		"**/*.test.js"
+	]
+}

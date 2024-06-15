@@ -23,5 +23,7 @@
     "ts-jest": "^29.1.0",
     "typescript": "^5.0.4"
   },
-  "dependencies": {}
+  "dependencies": {
+    "isoworker": "^0.2.4"
+  }
 }
